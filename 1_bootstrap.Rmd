@@ -1,0 +1,54 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+---
+
+## Set up environment
+
+Firstly, we load in the packages required for the analysis.
+
+```{r}
+library(dplyr, warn.conflicts = FALSE) # data manipulation
+library(ggplot2, warn.conflicts = FALSE) # nice plots
+library(purrr, warn.conflicts = FALSE) # nice loops
+```
+
+## Problem 1
+
+Firstly, we load in the data, and present a histogram.
+
+```{r}
+data <- c(3.66, 1.00, -0.87, 2.90, -0.80, 3.20, 1.69, -3.53, 3.22, 3.53)
+N <- length(data)
+hist(data)
+```
+
+From the histogram, we can see that the data is skewed. \
+
+### 1 a)
+
+*Make 1000 bootstrap draws from this sample of size 10 and use them to construct an estimate of the pdf of the sample mean and the standard deviation of the sample mean.*
+
+```{r}
+# Define a function for taking draws from the data, returning a 
+# conveniently formated dataframe
+take_draw <- function(i, data, N) {
+  data.frame(
+    value = sample(data, size = N, replace = TRUE), draw = i)
+}
+
+# Take 1000 draws, save them in a dataframe for convenience. 
+df <- map_dfr(seq(1:1000), take_draw, data = data, N = N)
+
+# Use this to get estimates of the pdf for the mean and SD
+stat_df <- df %>% 
+  group_by(draw) %>% 
+  summarise(mean = mean(value), sd = sd(value))
+
+```
+
+### 1 b)
+
+*Plot the estimated pdf, which you can do in R with **plot**(bkde()) using the KernelSmooth package or with the **hist**() function.*
