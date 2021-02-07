@@ -137,8 +137,10 @@ sim_normals <- function(mu, N)
 sim_data <- map_dfr(seq(0,3,0.5), sim_normals, N = N)
 
 ggplot() + 
-  geom_density(data = filter(sim_data, mu != 1.5), aes(x = draws, color = mu, group = mu), alpha = .001) + 
-  geom_density(data = filter(sim_data, mu == 1.5), aes(x = draws), color = "red", alpha = 1)
+  geom_density(data = filter(sim_data, mu != 1.5), 
+               aes(x = draws, color = mu, group = mu), alpha = .001) + 
+  geom_density(data = filter(sim_data, mu == 1.5), 
+               aes(x = draws), color = "red", alpha = 1)
 ```
 
 This doesn't look very similar to what we got from the bootstrap. However, lets take a look at the 95% credible set...
@@ -165,21 +167,19 @@ This doesn't look very similar to what we got from the bootstrap. However, lets 
 
 *But what is the alternative hypothesis? If it is that her guessing is i.i.d. across cups, with probability p of being right on each cup, we can construct a likelihood function for p and ask what is the flat-prior probability of p \> .5 given that she has made 4, or 5, correct guesses. Do that. (The posterior is a Beta distribution.)*
 
-Let $Y = \{y_1, y_2, … y_5\}$ denote the observed sample of guesses, where $y_i = 1$ if the guess is correct, and $y_i = 0$ if the guess is incorrect. Let $n = \sum_i y_i$ denote the total number of correct guesses, and let $N = 5$ be the sample size. 
+Let $Y = \{y_1, y_2, … y_5\}$ denote the observed sample of guesses, where $y_i = 1$ if the guess is correct, and $y_i = 0$ if the guess is incorrect. Let $n = \sum_i y_i$ denote the total number of correct guesses, and let $N = 5$ be the sample size.
 
-Then, we can write the likelihood function for $p$ as follows: 
-$$
+Then, we can write the likelihood function for $p$ as follows: $$
 L(Y|p) = \prod_{i = 1}^N p^{y_i} (1-p)^{1-y_i} = p^n (1-p)^{N-n}
-$$
-Given we have a flat prior, we can derive the posterior, $q(p|Y)$ as follows:
+$$ Given we have a flat prior, we can derive the posterior, $q(p|Y)$ as follows:
 
 $$
 q(p|Y) \propto L(Y|p) = p^n (1-p)^{N-n} \propto Beta(n+1, N-n+1)
 $$
 
-Now, we can use this to estimate the probability that $p>0.5$, given she made 4 or five correct guesses. To do this, we just take a lot of draws from the relevant $Beta$ distribtuion, and count the number where $p>0.5$. 
+Now, we can use this to estimate the probability that $p>0.5$, given she made 4 or five correct guesses. To do this, we just take a lot of draws from the relevant $Beta$ distribtuion, and count the number where $p>0.5$.
 
-Firstly, define a function for doing this simulation. 
+Firstly, define a function for doing this simulation.
 
 ```{r}
 post_prob_greater_than_.5 <- function(N,n){
@@ -188,23 +188,27 @@ post_prob_greater_than_.5 <- function(N,n){
 }
 N <- 5
 ```
+
 Now, run it for n = 4...
+
 ```{r}
 post_prob_greater_than_.5(N, 4)
 ```
+
 And for n = 5...
+
 ```{r}
 post_prob_greater_than_.5(N, 5)
 ```
-
 
 ### Part 2
 
 *Suppose it happens that every one of the 5 test cups of tea has milk first, and she guesses milk first on every one of them. Does this seem like less strong evidence of her ability than if the cups she had been presented had at least some of each type? How might one justify a claim that the evidence is less strong in this case?*
 
-We would need to incorporate some kind of prior, suggesting that it is easier to guess them all correctly if they are all of the same type. 
+Argue that its plausible from our usual framework to say it doesn't matter.
 
-Prior, $\pi (p)$ could be decreasing in $p$, for example. 
+-   Crucial here is the alternative hypothesis.
 
+We would need to incorporate some kind of prior, suggesting that it is easier to guess them all correctly if they are all of the same type.
 
-
+Prior, $\pi (p)$ could be decreasing in $p$, for example.
