@@ -1,6 +1,6 @@
 ---
 title: "ECO518 Assignment 1"
-author: "Tom"
+author: "Tom Bearpark and Ziqiao Zhang"
 output:
   pdf_document: 
     latex_engine: xelatex
@@ -8,22 +8,23 @@ output:
     df_print: paged
 ---
 
-Firstly, we set up our coding environment, and loading packages...
+Firstly, we set up our coding environment, and load packages...
 
 ```{r}
-knitr::opts_chunk$set(fig.width=5, fig.height=4) 
+knitr::opts_chunk$set(fig.width=4.5, fig.height=3.5) 
 rm(list = ls())
 library(dplyr, warn.conflicts = FALSE)   # data manipulation, piping
 library(ggplot2, warn.conflicts = FALSE) # nice plots
 library(purrr, warn.conflicts = FALSE)   # nice loops
 library(tidyr, warn.conflicts = FALSE)   # reshaping function
-theme_set(theme_bw()) # ggplot theme
-set.seed(123)
+theme_set(theme_bw())                    # ggplot theme
+set.seed(123)                            # replicable random numbers
 ```
 
 ## Problem 1
 
-Before beginning this problem, we load in the data, and present a histogram.
+Before beginning this problem, we load in the data, and present a histogram of 
+the raw data...
 
 ```{r}
 data <- c(3.66, 1.00, -0.87, 2.90, -0.80, 3.20, 1.69, -3.53, 3.22, 3.53)
@@ -33,7 +34,7 @@ ggplot(data.frame(data = data)) +
   ggtitle("Histogram of raw data, binwidth = 0.5")
 ```
 
-From the histogram, we can see some evidence of skew. However, given our very small sample, this evidence is pretty weak.
+From the histogram, we can see some evidence of skew, and might also be concerned that our sample is not of the well behaved sort that is amenable to bootstrapping. However, given our very small sample, this evidence is pretty weak.
 
 ### 1. a)
 
@@ -46,7 +47,7 @@ take_draw <- function(i, data, N)
   data.frame(value = sample(data, size = N, replace = TRUE), draw = i)
 
 # Take 1000 draws, save them in a dataframe for convenience. 
-df <- map_dfr(seq(1:1000), take_draw, data = data, N = N)
+df <- map_dfr(1:1000, take_draw, data = data, N = N)
 
 # Use this to get estimates of the pdf for the mean and SD
 stat_df <- df %>% 
@@ -59,7 +60,7 @@ stat_df <- df %>%
 *Plot the estimated pdf, which you can do in R with **plot**(bkde()) using the KernelSmooth package or with the **hist**() function.*
 
 ```{r}
-# plot (using ggplot, my preferred plotting option)
+# plot using ggplot's "geom_density" function that can estimate the kernel
 stat_df %>% 
   pivot_longer(cols = -draw, names_to = "statistic") %>% 
   ggplot() + 
@@ -72,7 +73,7 @@ stat_df %>%
 
 *On the assumption that when the mean of the population distribution changes, it changes the distribution by a pure location shift, use your bootstrapped sample to construct a 95% confidence interval for the mean (Should it be "flipped"?)*
 
-We can construct quantiles of the distribution, by ordering the means of each draw.
+We can construct quantiles of the distribution, by ordering the means of each draw. These will allow us to produce frequentist confidence intervals.
 
 ```{r}
 CI <- quantile(stat_df$mean, probs = c(0.025, 0.975))
@@ -95,7 +96,9 @@ ggplot() +
                 label = "Bootstrapped 95% CI"), color = "blue")
 ```
 
-We can see from this plot that the bootstrapped estimates do not appear to be particularly skewed. This suggests that we don't need to flip our estimates. We don't have reason to think that our mean is biased.
+From the lecture slides, we know that in a location shift model, we can get from confidence intervals to credible sets by 'flipping' the intervals around the mean of the original data. However, in this question, we are asked to find a confidence interval, which does not need to be flipped. 
+
+Also, we can see from this plot that the bootstrapped estimates do not appear to be particularly skewed. This suggests that we don't have much need to flip our estimates, even if we want to get a credible set rather than a confidence interval. 
 
 ### 1. d)
 
@@ -108,54 +111,109 @@ We can see from this plot that the bootstrapped estimates do not appear to be pa
 Firstly, lets write down the likelihood.
 
 $$
-L(Y|\mu) = \left(\frac{1}{\sigma_1 \sqrt{2 \pi}} e^{-\frac{1}{2}\left(\frac{x_i-\mu_1}{\sigma_1}\right)^{2}} \right)^{0.5N} * \left(\frac{1}{\sigma_2 \sqrt{2 \pi}} e^{-\frac{1}{2}\left(\frac{x_i-\mu_2}{\sigma_2}\right)^{2}}\right) ^{0.5N}
+L(Y|\mu) \propto	\ \prod_{i=1}^{10} \left(0.5*\frac{1}{\sigma_1 \sqrt{2 \pi}} e^{-\frac{1}{2}\left(\frac{x_i-\mu_1}{\sigma_1}\right)^{2}} + 0.5*\frac{1}{\sigma_2 \sqrt{2 \pi}} e^{-\frac{1}{2}\left(\frac{x_i-\mu_2}{\sigma_2}\right)^{2}}\right)
+$$
+Now, for part (d), we plug in the following parameters...
+$$ 
+\sigma_1 = 3, \ \sigma_2 = 0.2, \ \mu_1 = \mu-1.5, \ \mu_2 = \mu + 1.5
 $$
 
-Subbing in our known parameters, we can write...
 
-$$
-L(Y|\mu) = \left(\frac{1}{3 \sqrt{2 \pi}} e^{-\frac{1}{2}\left(\frac{x_i-(\mu - 1.5)}{3}\right)^{2}} \right)^{4} * \left(\frac{1}{0.2 \sqrt{2 \pi}} e^{-\frac{1}{2}\left(\frac{x_i-(\mu + 1.5}{0.2}\right)^{2}}\right) ^{4}
-$$
-
-Since we know mu is 1.5, we can plot this likelihood function:
-
--   I don't know how to allocate x vales from the sample to each normal and hence am stuck.
-
--   I know that we want to put four observations in each one. But how do we know which ones?
-
--   What does it mean to plot the likelihood as a function of mu ? Different function for each?
-
-Alternative approach: draw from these two normals?
+To code this, firstly we write a function that we can use to obtain the likelihood
+for any required value of mu. This function is general enough to be used in both
+part d) and part e). 
 
 ```{r}
-N = 1000
-# Function for drawing from the likelihood, for a given mu
-sim_normals <- function(mu, N)
-  data.frame(mu = mu, draws = c(rnorm(N/2, mean = mu - 1.5, sd = 3), 
-              rnorm(N/2, mean = mu + 1.5, sd = 0.2)))
-
-sim_data <- map_dfr(seq(0,3,0.5), sim_normals, N = N)
-
-ggplot() + 
-  geom_density(data = filter(sim_data, mu != 1.5), 
-               aes(x = draws, color = mu, group = mu), alpha = .001) + 
-  geom_density(data = filter(sim_data, mu == 1.5), 
-               aes(x = draws), color = "red", alpha = 1)
+l <- function(mu, sigma1, sigma2, X, part){
+  if (part == "d"){
+    mu_1 <- mu - 1.5
+    mu_2 <- mu + 1.5
+  } else if (part == "e"){
+    mu_1 <- 0
+    mu_2 <- 2 * mu
+  }
+  l <- 1
+  for(x_i in X){
+    l <- l * 
+      0.5 * 
+        (1 / (sigma1 * sqrt(2 * pi))) * exp(-0.5 * ((x_i - mu_1) / sigma1)^2) + 
+      0.5 * 
+        (1 / (sigma2 * sqrt(2 * pi))) * exp(-0.5 * ((x_i - mu_2) / sigma2)^2)
+  }
+  return(l)
+}
+# initialise a dataframe for plotting
+mu_range <- seq(-1.5, 3.5, 0.1)
+plot_df <- data.frame(mu = mu_range)
 ```
 
-This doesn't look very similar to what we got from the bootstrap. However, lets take a look at the 95% credible set...
-
--   this doesn't seem right - we want to look at the posterior??
+Now, we are ready to plot the sample likelihood as a function of mu. To do this, 
+we apply the likelihood function defined above to a range of values of mu for which
+we want to see the likelihood. 
 
 ```{r}
-# quantile(filter(sim_data, mu == 1.5) , 0.5)
+plot_df$ld <- unlist(map(mu_range, l, sigma1 = 3, 
+                         sigma2 = 0.2, X = data, part = "d" ))
+ggplot(plot_df) + 
+  geom_line(aes(x = mu, y = ld)) + 
+  ggtitle("Part d) sample Likelihood as a function of mu") + 
+  ylab("Likelihood")
+
+```
+
+We assume a flat prior on $\mu$ in part (d) and (e), because there is no obvious alternative that is more sensible. Therefore, the posterior probability is proportional to the conditional probability of sample on $\mu$. 
+
+Note, the function plotted above is not a posterior probability distribution, since 
+it does not integrate to one. The below code snippet shows that the integral of this function
+over a reasonable range is not close to one.
+
+```{r}
+ld <- function(mu){
+  l(sigma1 = 3, sigma2 = 0.2, X = data, part = "d", mu = mu)
+}
+integrate(ld, lower = -10, upper = 10)
+```
+
+However, we can draw from this posterior distribution using MCMC techniques, 
+in order to find a credible set. UNFINISHED?!?!
+
+```{r}
+# # install.packages("mcmc")
+# library(mcmc)
+# out <- metrop(ld, initial = 1, nbatch = 10000000, blen = 1)
+# # out <- metrop(out, scale = 10)
+# out$accept
+# 
+# out <- metrop(out, scale = 2)
+# 
+# plot(ts(out$batch))
 ```
 
 ### 1. e)
 
 *Now suppose instead that we know the first component has mean 0, but don't know the mean of the second component. The mean of the second component is 2μ, so that μ is still the mean of the distribution, but μ no longer produces a pure location shift. Plot the likelihood and find a 95% credible set for μ for this case.*
 
--   We can just estimate mu from the sample? ??
+For part (e), plug in the following parameters 
+$$ 
+\sigma_1 = 3, \ \sigma_2 = 0.2, \ \mu_1 = 0, \ \mu_2 = 2\mu
+$$
+
+We can use the function defined in part d) to find our sample likelihood as a function
+of mu, and plot... 
+```{r}
+plot_df$le <- unlist(map(mu_range, l, sigma1 = 3, 
+                         sigma2 = 0.2, X = data, part = "e" ))
+ggplot(plot_df) + 
+  geom_line(aes(x = mu, y = le)) + 
+  ggtitle("Part e) sample likelihood as a function of mu") + 
+  ylab("Likelihood")
+
+```
+
+NEED TO WRITE INTERPRETATION. SAME ISSUE WITH CREDIBLE SET AS IN PART D)
+
+
+\newpage
 
 ## Problem 2: The lady tasting tea
 
@@ -195,20 +253,57 @@ Now, run it for n = 4...
 post_prob_greater_than_.5(N, 4)
 ```
 
+Therefore, if she guesses four of the cups correctly, we conclude that there is 
+nearly a 90% chance that she is able to tell the difference. 
+
 And for n = 5...
 
 ```{r}
 post_prob_greater_than_.5(N, 5)
 ```
 
+So, if she guesses all five of the cups correctly, we conclude that there is 
+nearly a 99% chance that she is able to tell the difference. 
+
 ### Part 2
 
 *Suppose it happens that every one of the 5 test cups of tea has milk first, and she guesses milk first on every one of them. Does this seem like less strong evidence of her ability than if the cups she had been presented had at least some of each type? How might one justify a claim that the evidence is less strong in this case?*
 
-Argue that its plausible from our usual framework to say it doesn't matter.
+As we have set up the analysis for this question, the fact that all five cups are off the same type 
+does not influence the analysis. And, there is a decent intuitive argument to suggest that
+it should not, either. Since the alternative hypothesis here is that her choices are iid, 
+unless we have reason to believe that some sets of cups are easier for her to guess than others, 
+there is no reason to discriminate between any sets of cups that she has to guess.
 
--   Crucial here is the alternative hypothesis.
+To justify the argument that the evidence is less strong in this case, you could argue that 
+if all the cups are the same type, then it is easier to guess them all correctly. This could
+be justified due to some appeal to human psychology, or perhaps it is evidence of cheating. 
+Maybe, if all cups are the same, its more likely that the lady has cheated somehow, meaning that
+she is more likely to get them all right. 
 
-We would need to incorporate some kind of prior, suggesting that it is easier to guess them all correctly if they are all of the same type.
+To formulate this into our model, we could make the alternative hypothesis conditional on the cups. For example, we could say that if all cups are the same, we require that she gets a higher proportion 
+of them correct in order for us to be convinced that she can truly tell the difference.
 
-Prior, $\pi (p)$ could be decreasing in $p$, for example.
+
+
+
+<!-- \newpage -->
+
+<!-- ## Appendix -->
+
+<!-- #### Population likelihood function for part 1d) -->
+
+<!-- ```{r} -->
+<!-- N = 1000 -->
+<!-- # Function for drawing from the likelihood, for a given mu -->
+<!-- sim_normals <- function(mu, N) -->
+<!--   data.frame(mu = mu, draws = c(rnorm(N/2, mean = mu - 1.5, sd = 3),  -->
+<!--               rnorm(N/2, mean = mu + 1.5, sd = 0.2))) -->
+
+<!-- sim_data <- map_dfr(seq(0,3,0.5), sim_normals, N = N) -->
+
+<!-- ggplot() +  -->
+<!--   geom_density(data = filter(sim_data, mu == 1.5),  -->
+<!--                aes(x = draws), color = "red", alpha = 1) -->
+<!-- ``` -->
+
