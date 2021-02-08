@@ -34,11 +34,15 @@ ggplot(data.frame(data = data)) +
   ggtitle("Histogram of raw data, binwidth = 0.5")
 ```
 
-From the histogram, we can see some evidence of skew, and might also be concerned that our sample is not of the well behaved sort that is amenable to bootstrapping. However, given our very small sample, this evidence is pretty weak.
+From the histogram, we can see some evidence of skew, and might also be concerned 
+that our sample is not of the well behaved sort that is amenable to bootstrapping. 
+However, given our very small sample, this evidence is pretty weak.
 
 ### 1. a)
 
-*Make 1000 bootstrap draws from this sample of size 10 and use them to construct an estimate of the pdf of the sample mean and the standard deviation of the sample mean.*
+*Make 1000 bootstrap draws from this sample of size 10 and use them to construct 
+an estimate of the pdf of the sample mean and the standard deviation of the sample 
+mean.*
 
 ```{r}
 # Define a function for taking draws from the data, returning a 
@@ -57,7 +61,8 @@ stat_df <- df %>%
 
 ### 1. b)
 
-*Plot the estimated pdf, which you can do in R with **plot**(bkde()) using the KernelSmooth package or with the **hist**() function.*
+*Plot the estimated pdf, which you can do in R with **plot**(bkde()) using the 
+KernelSmooth package or with the **hist**() function.*
 
 ```{r}
 # plot using ggplot's "geom_density" function that can estimate the kernel
@@ -71,9 +76,12 @@ stat_df %>%
 
 ### 1. c)
 
-*On the assumption that when the mean of the population distribution changes, it changes the distribution by a pure location shift, use your bootstrapped sample to construct a 95% confidence interval for the mean (Should it be "flipped"?)*
+*On the assumption that when the mean of the population distribution changes, 
+it changes the distribution by a pure location shift, use your bootstrapped sample 
+to construct a 95% confidence interval for the mean (Should it be "flipped"?)*
 
-We can construct quantiles of the distribution, by ordering the means of each draw. These will allow us to produce frequentist confidence intervals.
+We can construct quantiles of the distribution, by ordering the means of each draw. 
+These will allow us to produce frequentist confidence intervals.
 
 ```{r}
 CI <- quantile(stat_df$mean, probs = c(0.025, 0.975))
@@ -81,7 +89,8 @@ CI <- quantile(stat_df$mean, probs = c(0.025, 0.975))
 print(CI)
 ```
 
-We can visualize these quantiles on a plot. We also present the mean of the original data, so we can analyze the skew.
+We can visualize these quantiles on a plot. We also present the mean of the original 
+data, so we can analyze the skew.
 
 ```{r}
 ggplot() + 
@@ -102,11 +111,15 @@ Also, we can see from this plot that the bootstrapped estimates do not appear to
 
 ### 1. d)
 
-*The data were actually generated from an equally weighted mixture of two normals, one with mean 0, standard deviation 3, one with mean 3, standard deviation 0.2.*
+*The data were actually generated from an equally weighted mixture of two normals, 
+one with mean 0, standard deviation 3, one with mean 3, standard deviation 0.2.*
 
-*Suppose we knew that the distribution had this form, except for the means of the two components. If the first component has mean μ − 1.5 and the second mean μ + 1.5, with μ unknown, we have a pure location shift model of the data.*
+*Suppose we knew that the distribution had this form, except for the means of 
+the two components. If the first component has mean μ − 1.5 and the second mean 
+μ + 1.5, with μ unknown, we have a pure location shift model of the data.*
 
-*Plot the likelihood for this sample as a function of μ. Does it imply a 95% credible set (under a flat prior) similar to what you got from the bootstrap?*
+*Plot the likelihood for this sample as a function of μ. Does it imply a 95% 
+credible set (under a flat prior) similar to what you got from the bootstrap?*
 
 Firstly, lets write down the likelihood.
 
@@ -191,7 +204,10 @@ in order to find a credible set. UNFINISHED?!?!
 
 ### 1. e)
 
-*Now suppose instead that we know the first component has mean 0, but don't know the mean of the second component. The mean of the second component is 2μ, so that μ is still the mean of the distribution, but μ no longer produces a pure location shift. Plot the likelihood and find a 95% credible set for μ for this case.*
+*Now suppose instead that we know the first component has mean 0, but don't know 
+the mean of the second component. The mean of the second component is 2μ, so that 
+μ is still the mean of the distribution, but μ no longer produces a pure location 
+shift. Plot the likelihood and find a 95% credible set for μ for this case.*
 
 For part (e), plug in the following parameters 
 $$ 
@@ -219,13 +235,32 @@ NEED TO WRITE INTERPRETATION. SAME ISSUE WITH CREDIBLE SET AS IN PART D)
 
 ### Part 1
 
-*A lady claims to be able to tell whether she has been served tea with the milk put in the cup before, or after, the tea. She is given a sequence of cups of tea, some of which (or perhaps all, or none of which) have had the milk put in first. She announces her guesses, we find out how many of them were correct. How do we assess the evidence for her abilities?*
+*A lady claims to be able to tell whether she has been served tea with the milk 
+put in the cup before, or after, the tea. She is given a sequence of cups of tea, 
+some of which (or perhaps all, or none of which) have had the milk put in first. 
+She announces her guesses, we find out how many of them were correct. 
+How do we assess the evidence for her abilities?*
 
-*This is a classic example, probably the simplest and most appealing case for randomization inference. There is no need to appeal to hypothetical repetitions of the lady's test, as in the usual frequentist framework. Here there 2\^N possible sequences of milk-first/milk-second, where N is the number of trials. So if she is given, say, 5 cups, there are 32 possibilities. If we choose the sequence of cups she is presented with "at random" from these 32 possibilities, the probability that she gets them all right if she is "just guessing" is 1/32, and that she gets at least 4 out of 5 right is 6/32. This lets us construct an exact, finite-sample test of "H0: she's guessing" at a .03125 or .1875 significance level.*
+*This is a classic example, probably the simplest and most appealing case for 
+randomization inference. There is no need to appeal to hypothetical repetitions 
+of the lady's test, as in the usual frequentist framework. Here there 2\^N possible 
+sequences of milk-first/milk-second, where N is the number of trials. So if she 
+is given, say, 5 cups, there are 32 possibilities. If we choose the sequence of 
+cups she is presented with "at random" from these 32 possibilities, the probability 
+that she gets them all right if she is "just guessing" is 1/32, and that she gets at 
+least 4 out of 5 right is 6/32. This lets us construct an exact, finite-sample 
+test of "H0: she's guessing" at a .03125 or .1875 significance level.*
 
-*But what is the alternative hypothesis? If it is that her guessing is i.i.d. across cups, with probability p of being right on each cup, we can construct a likelihood function for p and ask what is the flat-prior probability of p \> .5 given that she has made 4, or 5, correct guesses. Do that. (The posterior is a Beta distribution.)*
+*But what is the alternative hypothesis? If it is that her guessing is i.i.d. 
+across cups, with probability p of being right on each cup, we can construct a 
+likelihood function for p and ask what is the flat-prior probability of p \> .5 
+given that she has made 4, or 5, correct guesses. Do that. (The posterior is a 
+Beta distribution.)*
 
-Let $Y = \{y_1, y_2, … y_5\}$ denote the observed sample of guesses, where $y_i = 1$ if the guess is correct, and $y_i = 0$ if the guess is incorrect. Let $n = \sum_i y_i$ denote the total number of correct guesses, and let $N = 5$ be the sample size.
+Let $Y = \{y_1, y_2, … y_5\}$ denote the observed sample of guesses, 
+where $y_i = 1$ if the guess is correct, and $y_i = 0$ if the guess is incorrect. 
+Let $n = \sum_i y_i$ denote the total number of correct guesses, and let $N = 5$ 
+be the sample size.
 
 Then, we can write the likelihood function for $p$ as follows: $$
 L(Y|p) = \prod_{i = 1}^N p^{y_i} (1-p)^{1-y_i} = p^n (1-p)^{N-n}
@@ -235,7 +270,9 @@ $$
 q(p|Y) \propto L(Y|p) = p^n (1-p)^{N-n} \propto Beta(n+1, N-n+1)
 $$
 
-Now, we can use this to estimate the probability that $p>0.5$, given she made 4 or five correct guesses. To do this, we just take a lot of draws from the relevant $Beta$ distribtuion, and count the number where $p>0.5$.
+Now, we can use this to estimate the probability that $p>0.5$, given she made 4 
+or five correct guesses. To do this, we just take a lot of draws from the relevant 
+$Beta$ distribtuion, and count the number where $p>0.5$.
 
 Firstly, define a function for doing this simulation.
 
@@ -267,7 +304,11 @@ nearly a 99% chance that she is able to tell the difference.
 
 ### Part 2
 
-*Suppose it happens that every one of the 5 test cups of tea has milk first, and she guesses milk first on every one of them. Does this seem like less strong evidence of her ability than if the cups she had been presented had at least some of each type? How might one justify a claim that the evidence is less strong in this case?*
+*Suppose it happens that every one of the 5 test cups of tea has milk first, and 
+she guesses milk first on every one of them. Does this seem like less strong 
+evidence of her ability than if the cups she had been presented had at least 
+some of each type? How might one justify a claim that the evidence is less strong 
+in this case?*
 
 As we have set up the analysis for this question, the fact that all five cups are off the same type 
 does not influence the analysis. And, there is a decent intuitive argument to suggest that
@@ -281,7 +322,8 @@ be justified due to some appeal to human psychology, or perhaps it is evidence o
 Maybe, if all cups are the same, its more likely that the lady has cheated somehow, meaning that
 she is more likely to get them all right. 
 
-To formulate this into our model, we could make the alternative hypothesis conditional on the cups. For example, we could say that if all cups are the same, we require that she gets a higher proportion 
+To formulate this into our model, we could make the alternative hypothesis conditional on 
+the cups. For example, we could say that if all cups are the same, we require that she gets a higher proportion 
 of them correct in order for us to be convinced that she can truly tell the difference.
 
 

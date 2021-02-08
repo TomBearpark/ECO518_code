@@ -368,14 +368,16 @@ N &lt;- 5</code></pre>
 <p>Now, run it for n = 4…</p>
 <pre class="r"><code>post_prob_greater_than_.5(N, 4)</code></pre>
 <pre><code>## [1] 0.8929</code></pre>
+<p>Therefore, if she guesses four of the cups correctly, we conclude that there is nearly a 90% chance that she is able to tell the difference.</p>
 <p>And for n = 5…</p>
 <pre class="r"><code>post_prob_greater_than_.5(N, 5)</code></pre>
 <pre><code>## [1] 0.9847</code></pre>
+<p>So, if she guesses all five of the cups correctly, we conclude that there is nearly a 99% chance that she is able to tell the difference.</p>
 </div>
 <div id="part-2" class="section level3">
 <h3>Part 2</h3>
 <p><em>Suppose it happens that every one of the 5 test cups of tea has milk first, and she guesses milk first on every one of them. Does this seem like less strong evidence of her ability than if the cups she had been presented had at least some of each type? How might one justify a claim that the evidence is less strong in this case?</em></p>
-<p>As we have set up this question, the fact that all five cups are off the same type does not influence the analysis. And, there is a decent intuitive argument to suggest that it should not, either. Since the alternative hypothesis here is that her choices are iid, unless we have reason to beleive taht some sets of cups are easier for her to guess than others, there is no reason to discriminate between any sets of cups that she has to guess.</p>
+<p>As we have set up the analysis for this question, the fact that all five cups are off the same type does not influence the analysis. And, there is a decent intuitive argument to suggest that it should not, either. Since the alternative hypothesis here is that her choices are iid, unless we have reason to believe that some sets of cups are easier for her to guess than others, there is no reason to discriminate between any sets of cups that she has to guess.</p>
 <p>To justify the argument that the evidence is less strong in this case, you could argue that if all the cups are the same type, then it is easier to guess them all correctly. This could be justified due to some appeal to human psychology, or perhaps it is evidence of cheating. Maybe, if all cups are the same, its more likely that the lady has cheated somehow, meaning that she is more likely to get them all right.</p>
 <p>To formulate this into our model, we could make the alternative hypothesis conditional on the cups. For example, we could say that if all cups are the same, we require that she gets a higher proportion of them correct in order for us to be convinced that she can truly tell the difference.</p>
 <!-- \newpage -->
