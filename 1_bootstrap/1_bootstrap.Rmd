@@ -29,6 +29,7 @@ the raw data...
 ```{r}
 data <- c(3.66, 1.00, -0.87, 2.90, -0.80, 3.20, 1.69, -3.53, 3.22, 3.53)
 N <- length(data)
+mean_raw <- mean(data)
 ggplot(data.frame(data = data)) + 
   geom_histogram(aes(x = data), binwidth = 0.5) + 
   ggtitle("Histogram of raw data, binwidth = 0.5")
@@ -111,8 +112,20 @@ of the original data. However, in this question, we are asked to find a confiden
 interval, which does not need to be flipped. 
 
 Also, we can see from this plot that the bootstrapped estimates do not appear to be 
-particularly skewed. This suggests that we don't have much need to flip our estimates, 
-even if we want to get a credible set rather than a confidence interval. 
+particularly skewed. This suggests that we don't have much need to flip our estimates.
+
+If we do want to be careful, and to say something about the credible set, we can flip the estimates
+like this: 
+
+```{r}
+lower_cred <- mean_raw - (CI[2] - mean_raw) 
+upper_cred <- mean_raw - (CI[1] - mean_raw) 
+cred_set <- c(lower_cred, upper_cred)
+cred_set
+```
+
+As we can see, this is very similar to the version where we didn't flip
+the interval. 
 
 ### 1. d)
 
@@ -255,16 +268,16 @@ credible_set_d <- get_credible_set(likelihood_d_norm)
 ```
 
 Finally, lets plot this, and compare it to the bootstrapped estimate. In the below 
-plot, the blue lines represent the bootstrapped CI found in part c above. The red lines
+plot, the blue lines represent the bootstrapped credible set found in part c above. The red lines
 represent the posterior distribution found in part 1d), and the implied 95% credible
-set. 
+set calculated above using numerical integration. 
 
 ```{r}
 ggplot(plot_df) + 
   geom_line(aes(x = mu, y = likelihood_d_norm), color = "red")  + 
   geom_vline(xintercept = credible_set_d, color = "red") + 
   ggtitle("95% Credible Set, 1.d)") + 
-  geom_vline(xintercept = CI, color = "blue", alpha = 0.5)
+  geom_vline(xintercept = cred_set, color = "blue", alpha = 0.5)
 ```
 
 We can see that the credible set found in part 1d) is much tighter than that 
