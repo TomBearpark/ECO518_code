@@ -2,16 +2,16 @@
 title: "ECO518 Assignment 1"
 author: "Tom Bearpark and Ziqiao Zhang"
 output:
-  html_document:
-    df_print: paged
   pdf_document: 
     latex_engine: xelatex
+  html_document:
+    df_print: paged
 ---
 
 Firstly, we set up our coding environment, and load packages...
 
 ```{r}
-knitr::opts_chunk$set(fig.width=4.5, fig.height=3.5) 
+knitr::opts_chunk$set(fig.width=4.5, fig.height=3.5, fig.align = "center") 
 rm(list = ls())
 library(dplyr, warn.conflicts = FALSE)   # data manipulation, piping
 library(ggplot2, warn.conflicts = FALSE) # nice plots
@@ -173,10 +173,10 @@ we apply the likelihood function defined above to a range of values of mu for wh
 we want to see the likelihood. 
 
 ```{r}
-plot_df$ld <- unlist(map(mu_range, l, sigma1 = 3, 
+plot_df$likelihood_d <- unlist(map(mu_range, l, sigma1 = 3, 
                          sigma2 = 0.2, X = data, part = "d" ))
 ggplot(plot_df) + 
-  geom_line(aes(x = mu, y = ld)) + 
+  geom_line(aes(x = mu, y = likelihood_d)) + 
   ggtitle("Part d) sample Likelihood as a function of mu") + 
   ylab("Likelihood")
 
@@ -191,26 +191,84 @@ it does not integrate to one. The below code snippet shows that the integral of 
 over a reasonable range is not close to one.
 
 ```{r}
-ld <- function(mu){
+likelihood_d <- function(mu){
   l(sigma1 = 3, sigma2 = 0.2, X = data, part = "d", mu = mu)
 }
-integrate(ld, lower = -10, upper = 10)
+const_d <- integrate(likelihood_d, lower = -10, upper = 10)
+const_d
 ```
 
 However, we can draw from this posterior distribution using MCMC techniques, 
-in order to find a credible set. UNFINISHED?!?!
+in order to find a credible set. 
+
+Or alternatively, can we can renormalise the function so that it integrates to one. 
+The below code presents such a function, a provides a plot of the posterior
+distribution.
 
 ```{r}
-# # install.packages("mcmc")
-# library(mcmc)
-# out <- metrop(ld, initial = 1, nbatch = 10000000, blen = 1)
-# # out <- metrop(out, scale = 10)
-# out$accept
-# 
-# out <- metrop(out, scale = 2)
-# 
-# plot(ts(out$batch))
+likelihood_d_norm <- function(mu)  likelihood_d(mu) / const_d$value 
+integrate(likelihood_d_norm, lower = -10, upper = 10)$value # check that this is 1
+plot_df <- plot_df %>% 
+  mutate(likelihood_d_norm = likelihood_d_norm(mu))
+
+plot_df %>% 
+  rename(likelihood = likelihood_d, posterior = likelihood_d_norm) %>% 
+  pivot_longer(cols = -mu) %>% 
+  ggplot() + 
+  geom_line(aes(x = mu, y = value, color = name)) 
+
 ```
+
+Next, we define a function that will find the credible set, given a posterior pdf.
+To do this, we numerically integrate the function until we find a point on the x axis
+where the integral is equal to 0.025. We do the same thing starting from the top to 
+get the upper limit of the credible set. 
+
+```{r}
+get_credible_set <- function(pdf){
+  # Get the lower CI
+  p <- 0
+  lower_ci <- 0
+  while(p < 0.025){
+    p <- integrate(pdf, lower = -10, upper = lower_ci)
+    p <- p$value
+    lower_ci <- lower_ci + 0.001
+  }
+  
+  # Get the upper CI
+  p <- 0
+  upper_ci <- 5
+  while(p < 0.025){
+    p <- integrate(pdf, lower = upper_ci, upper = 10)
+    p <- p$value
+    upper_ci <- upper_ci - 0.001
+  }
+
+  print(paste0("Credible set is (", lower_ci, ", ", upper_ci, ")"))
+  return(c(lower_ci = lower_ci, upper_ci = upper_ci))
+}
+```
+
+We can run this function for our posterior density found above...
+```{r}
+credible_set_d <- get_credible_set(likelihood_d_norm)
+```
+
+Finally, lets plot this, and compare it to the bootstrapped estimate. In the below 
+plot, the blue lines represent the bootstrapped CI found in part c above. The red lines
+represent the posterior distribution found in part 1d), and the implied 95% credible
+set. 
+
+```{r}
+ggplot(plot_df) + 
+  geom_line(aes(x = mu, y = likelihood_d_norm), color = "red")  + 
+  geom_vline(xintercept = credible_set_d, color = "red") + 
+  ggtitle("95% Credible Set, 1.d)") + 
+  geom_vline(xintercept = CI, color = "blue", alpha = 0.5)
+```
+
+We can see that the credible set found in part 1d) is much tighter than that 
+found when we used the bootstrap estimate. 
 
 ### 1. e)
 
@@ -220,24 +278,49 @@ the mean of the second component. The mean of the second component is 2μ, so th
 shift. Plot the likelihood and find a 95% credible set for μ for this case.*
 
 For part (e), plug in the following parameters 
+
 $$ 
 \sigma_1 = 3, \ \sigma_2 = 0.2, \ \mu_1 = 0, \ \mu_2 = 2\mu
 $$
 
 We can use the function defined in part d) to find our sample likelihood as a function
 of mu, and plot... 
+
 ```{r}
-plot_df$le <- unlist(map(mu_range, l, sigma1 = 3, 
-                         sigma2 = 0.2, X = data, part = "e" ))
+plot_df$likelihood_e <- unlist(map(mu_range, l, sigma1 = 3, 
+                         sigma2 = 0.2, X = data, part = "e"))
 ggplot(plot_df) + 
-  geom_line(aes(x = mu, y = le)) + 
+  geom_line(aes(x = mu, y = likelihood_e)) + 
   ggtitle("Part e) sample likelihood as a function of mu") + 
   ylab("Likelihood")
 
 ```
 
-NEED TO WRITE INTERPRETATION. SAME ISSUE WITH CREDIBLE SET AS IN PART D)
+Using the same logic as before, we renormalise this function... 
 
+```{r}
+likielihood_e <- function(mu){
+  l(sigma1 = 3, sigma2 = 0.2, X = data, part = "e", mu = mu)
+}
+const_e <- integrate(likielihood_e, lower = -10, upper = 10)
+likielihood_e_norm <- function(mu)  likielihood_e(mu) / const_e$value 
+plot_df <- plot_df %>% 
+  mutate(likielihood_e_norm = likielihood_e_norm(mu))
+
+```
+
+And then use the function written earlier to calculate a credible set using 
+numerical integration... 
+
+```{r}
+credible_set_e <- get_credible_set(likielihood_e_norm)
+```
+
+Note, this is an even tighter credible set than that found in part (e). Since we 
+are no longer in the location-shift modeling situation, we do not really know 
+how well the credible set and bootstrap estimate compare. We should be wary of 
+our boostrapped estimate, if we are convinced that this is the underlying data
+generation process!
 
 \newpage
 
