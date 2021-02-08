@@ -274,7 +274,10 @@ print(CI)</code></pre>
 <p><em>Plot the likelihood for this sample as a function of μ. Does it imply a 95% credible set (under a flat prior) similar to what you got from the bootstrap?</em></p>
 <p>Firstly, lets write down the likelihood.</p>
 <p><span class="math display">\[
-L(Y|\mu) \propto    \ \prod_{i=1}^{10} \left(0.5*\frac{1}{\sigma_1 \sqrt{2 \pi}} e^{-\frac{1}{2}\left(\frac{x_i-\mu_1}{\sigma_1}\right)^{2}} + 0.5*\frac{1}{\sigma_2 \sqrt{2 \pi}} e^{-\frac{1}{2}\left(\frac{x_i-\mu_2}{\sigma_2}\right)^{2}}\right)
+L(Y|\mu) \propto    \ \prod_{i=1}^{10} \left(0.5*\frac{1}{\sigma_1 
+\sqrt{2 \pi}} e^{-\frac{1}{2}\left(\frac{x_i-\mu_1}{\sigma_1}\right)^{2}} + 
+0.5*\frac{1}{\sigma_2 \sqrt{2 \pi}} e^{-\frac{1}{2}\left(\frac{x_i-\mu_2}{\sigma_2}
+\right)^{2}}\right)
 \]</span> Now, for part (d), we plug in the following parameters… <span class="math display">\[ 
 \sigma_1 = 3, \ \sigma_2 = 0.2, \ \mu_1 = \mu-1.5, \ \mu_2 = \mu + 1.5
 \]</span></p>

@@ -2,10 +2,10 @@
 title: "ECO518 Assignment 1"
 author: "Tom Bearpark and Ziqiao Zhang"
 output:
-  pdf_document: 
-    latex_engine: xelatex
   html_document:
     df_print: paged
+  pdf_document: 
+    latex_engine: xelatex
 ---
 
 Firstly, we set up our coding environment, and load packages...
@@ -105,9 +105,14 @@ ggplot() +
                 label = "Bootstrapped 95% CI"), color = "blue")
 ```
 
-From the lecture slides, we know that in a location shift model, we can get from confidence intervals to credible sets by 'flipping' the intervals around the mean of the original data. However, in this question, we are asked to find a confidence interval, which does not need to be flipped. 
+From the lecture slides, we know that in a location shift model, we can get from 
+confidence intervals to credible sets by 'flipping' the intervals around the mean 
+of the original data. However, in this question, we are asked to find a confidence 
+interval, which does not need to be flipped. 
 
-Also, we can see from this plot that the bootstrapped estimates do not appear to be particularly skewed. This suggests that we don't have much need to flip our estimates, even if we want to get a credible set rather than a confidence interval. 
+Also, we can see from this plot that the bootstrapped estimates do not appear to be 
+particularly skewed. This suggests that we don't have much need to flip our estimates, 
+even if we want to get a credible set rather than a confidence interval. 
 
 ### 1. d)
 
@@ -124,7 +129,10 @@ credible set (under a flat prior) similar to what you got from the bootstrap?*
 Firstly, lets write down the likelihood.
 
 $$
-L(Y|\mu) \propto	\ \prod_{i=1}^{10} \left(0.5*\frac{1}{\sigma_1 \sqrt{2 \pi}} e^{-\frac{1}{2}\left(\frac{x_i-\mu_1}{\sigma_1}\right)^{2}} + 0.5*\frac{1}{\sigma_2 \sqrt{2 \pi}} e^{-\frac{1}{2}\left(\frac{x_i-\mu_2}{\sigma_2}\right)^{2}}\right)
+L(Y|\mu) \propto	\ \prod_{i=1}^{10} \left(0.5*\frac{1}{\sigma_1 
+\sqrt{2 \pi}} e^{-\frac{1}{2}\left(\frac{x_i-\mu_1}{\sigma_1}\right)^{2}} + 
+0.5*\frac{1}{\sigma_2 \sqrt{2 \pi}} e^{-\frac{1}{2}\left(\frac{x_i-\mu_2}{\sigma_2}
+\right)^{2}}\right)
 $$
 Now, for part (d), we plug in the following parameters...
 $$ 
@@ -174,7 +182,9 @@ ggplot(plot_df) +
 
 ```
 
-We assume a flat prior on $\mu$ in part (d) and (e), because there is no obvious alternative that is more sensible. Therefore, the posterior probability is proportional to the conditional probability of sample on $\mu$. 
+We assume a flat prior on $\mu$ in part (d) and (e), because there is no obvious 
+alternative that is more sensible. Therefore, the posterior probability is 
+proportional to the conditional probability of sample on $\mu$. 
 
 Note, the function plotted above is not a posterior probability distribution, since 
 it does not integrate to one. The below code snippet shows that the integral of this function
