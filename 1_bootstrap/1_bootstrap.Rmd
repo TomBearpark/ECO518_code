@@ -281,7 +281,12 @@ ggplot(plot_df) +
 ```
 
 We can see that the credible set found in part 1d) is much tighter than that 
-found when we used the bootstrap estimate. 
+found when we used the bootstrap estimate. Moreover, the credible set is more skewed to the right than confidence set from bootstrap. 
+
+Intuition is as follows. First, as the first graph shows, the sample data itself 
+is dense on the right (e.g. multiple occurrences around 3). Therefore, a credible set will be centered to the right of the mean. In contrast, bootstrap takes the sample as population, and makes multiple draws from that. The effect is similar to central limit theorem, making the distribution of bootstrapped sample means looks like a normal, with the 95% CI centered around sample mean. 
+
+Moreover, the credible set is tighter, probably because we have more information about the distribution (i.e. the distribution is mixture of normals), which helps narrow the interval. Also, density of normal distribution declines very fast away from the mean, which could also play a role here.
 
 ### 1. e)
 
@@ -316,7 +321,7 @@ likielihood_e <- function(mu){
   l(sigma1 = 3, sigma2 = 0.2, X = data, part = "e", mu = mu)
 }
 const_e <- integrate(likielihood_e, lower = -10, upper = 10)
-likielihood_e_norm <- function(mu)  likielihood_e(mu) / const_e$value 
+likielihood_e_norm <- function(mu) likielihood_e(mu) / const_e$value 
 plot_df <- plot_df %>% 
   mutate(likielihood_e_norm = likielihood_e_norm(mu))
 
@@ -334,6 +339,12 @@ are no longer in the location-shift modeling situation, we do not really know
 how well the credible set and bootstrap estimate compare. We should be wary of 
 our boostrapped estimate, if we are convinced that this is the underlying data
 generation process!
+
+Comment: The credible set should be tighter because here only one mean is uncertain. 
+In (d), moving the mean of one process ($\mu + 1.5$) away from the observation 
+can sometimes be compensated by moving the mean of the other process ($\mu - 1.5$) 
+closer to the observation. That effect isn't present in this part, and as a 
+result the credible set is tighter. 
 
 \newpage
 
