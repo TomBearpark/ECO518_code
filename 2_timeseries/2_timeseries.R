@@ -6,7 +6,7 @@
 # 0 Set up
 ############################################
 rm(list = ls())
-pacman::p_load(purrr, dplyr, ggplot2, latex2exp)
+pacman::p_load(purrr, dplyr, ggplot2, xtable)
 theme_set(theme_minimal())
 out <- paste0(
   "/Users/tombearpark/Documents/princeton/1st_year/term2/",
@@ -25,7 +25,7 @@ create_plots <- function(df, problem) {
   ggsave(paste0(out, "p", problem, "_ts.png"), height = 4, width = 5)
 
   png(paste0(out, "p", problem, "_acf.png"))
-  acf(df$y, main = "ACF")
+  acf(df$y[!is.na(df$y)], main = "ACF")
   dev.off()
 }
 
