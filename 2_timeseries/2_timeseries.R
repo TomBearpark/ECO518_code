@@ -30,42 +30,10 @@ create_plots <- function(df, problem) {
 }
 
 ############################################
-# Problem 1
-############################################
-
-# Generate data
-N <- 10000
-df1 <-
-  tibble(u = runif(N, 0, 1)) %>%
-  mutate(
-    t = row_number(),
-    k = case_when(
-      u <= 0.25 ~ 1,
-      0.25 < u & u <= 0.5 ~ 2,
-      0.5 < u & u <= 0.75 ~ 3,
-      u > 0.75 ~ 4
-    ),
-    y = sin(0.5 * pi * (k + t))
-  ) %>%
-  dplyr::select(-u)
-# Plot
-create_plots(df1, 1)
-
-# calculate empirical autocorrelation
-exp_t_t_tau <- function(df, tau){
-  print(paste0("R(",tau, ") = ", mean(df$y * lag(df$y, tau), na.rm = TRUE)))
-  mean(df$y * lag(df$y, tau), na.rm = TRUE)
-}
-exp_t_t_tau(df = df1, tau = 4)
-map_dbl(1:16, exp_t_t_tau, df = df1) %>% plot()
-
-s <- seq(1:8)
-plot(s, cos(0.5*pi*s))
-
-############################################
 # Problem 2
 ############################################
 
+# Visualise the model 
 N <- 100
 df2 <-
   tibble(epsilon = rnorm(N, mean = 0, sd = 1)) %>%
@@ -75,16 +43,6 @@ df2 <-
   )
 # Plot
 create_plots(df2, 2)
-
-# Compare the plots for the fundamental and non-fundamental version
-df2 <- df2 %>% 
-  mutate(nebla = epsilon * sqrt(2.56), 
-         yn = nebla + 1.025* dplyr::lag(nebla,1) + 
-           0.25 * dplyr::lag(nebla, 2))
-
-ggplot(df2[1:20,]) + 
-  geom_line(aes(x = t, y = y), color = "red") + 
-  geom_line(aes(x = t, y = yn), color = "blue")
 
 # Function to calculate the coefficient in the lag 
 # polynomial 
@@ -103,26 +61,27 @@ prediction_variance <- function(N, ACF, b){
   for (n in 1:N) {
     var <- var + 2 * gamma(n, b[1], b[2]) * ACF[n + 1]
     for (m in 1:N){
-      var <- var + gamma(n, b[1], b[2]) * gamma(m, b[1], b[2]) * ACF[abs(n - m ) + 1]
+      var <- var + 
+        gamma(n, b[1], b[2]) * gamma(m, b[1], b[2]) * ACF[abs(n - m ) + 1]
     }
   }
   data.frame(N = N, var = var)
 }
 
+# Calculate the variance of each estimator, plot as a function of N
 b <- c(-0.4, -0.625)
 ACF <- c(5.4096, 3.28, 0.64)
-
 plot_df2 <- map_dfr(seq(1,10), prediction_variance, ACF = ACF, b = b)
 ggplot(plot_df2) + 
   geom_point(aes(x = N, y = var)) + 
   geom_hline(yintercept = 3.2, color = "red") + ylab("Forecast error variance")
-
 ggsave(paste0(out, "p", 2, "_prediction_variance.png"), height = 4, width = 5)
+
+# Print out the coefficients of the selected model to copy into overleaf
 for (i in 1:3) print(gamma(i, b[1], b[2]))
 
-
-# check the resutls of the prediction:
-
+# check the results of the prediction - get predicted values based on our 
+# model
 get_prediction <- function(order, df){
   df[paste0('pred_N')] <- 0
   for (i in 1:order){
@@ -133,32 +92,25 @@ get_prediction <- function(order, df){
     mutate(error = pred_N - y)
 }
 
-
+# Scatter predicted vs actual values for differing lag lengths 
 plot_df2 <- map_dfr(1:10, get_prediction, df = df2)
-
 ggplot(plot_df2 %>% filter(order < 5)) +
   geom_point(aes(x = y, y = pred_N)) + 
   geom_smooth(aes(x = y, y = pred_N), alpha = 0.1)+
   facet_wrap(~order)
-ggsave(paste0(out, "p", 2, "_empirical_prediction_scatter.png"), height = 4, width = 5)
+ggsave(paste0(out, "p", 2, "_empirical_prediction_scatter.png"), 
+       height = 4, width = 5)
 
-ggplot(plot_df2) +
-  geom_density(aes(x = error)) + 
-  facet_wrap(~order)
-
-ggplot(plot_df2 %>% filter(order < 5), aes(group = order)) +
-  geom_density(aes(x = error, color = order)) 
-
-# Make a table of variances 
+# Make a table of variances to copy into overleaf
 plot_df2 %>% 
   group_by(order) %>% 
-  summarise(var = sd(error, na.rm = TRUE)^2) %>% xtable
-  
+  summarise(var = sd(error, na.rm = TRUE)^2) %>% 
+  xtable()
 
 ############################################
 # Problem 3
 ############################################
-
+# Generate time series from the model
 N <- 100
 df3 <-
   tibble(epsilon = rnorm(N, mean = 0, sd = 1)) %>%
@@ -168,3 +120,41 @@ df3 <-
   )
 # Plot
 create_plots(df3, 3)
+
+# Function for getting the coefficient on the lag
+gammaK <- function(n, K, b1){
+  coef <- 0
+  for (i in 0:n){
+    coef <- coef + (-(1 - n/K))^(n - i)*(b1)^(i)
+  }
+  coef
+}
+# Find the variance for a given model
+prediction_variance2 <- function(N, ACF, b){
+  ACF <- append(ACF, rep(0, N))
+  var <- ACF[1]
+  for (n in 1:N) {
+    var <- var + 2 * gammaK(n, K = N, b) * ACF[n + 1]
+    for (m in 1:N){
+      var <- var + 
+        gammaK(n, K = N, b)  * gammaK(m, K = N, b)  * ACF[abs(n - m) + 1]
+    }
+  }
+  data.frame(N = N, var = var)
+}
+# PLot prediction variance as a funciton of N
+ACF <- c(3.5, 2.25, 0.5)
+b <- -0.5
+plot_df3 <- map_dfr(seq(1,30), prediction_variance2, ACF = ACF, b = b)
+ggplot(plot_df3) + 
+  geom_point(aes(x = N, y = var)) + 
+  geom_hline(yintercept = 1.25, color = "red")
+ggsave(paste0(out, "p", 3, "_prediction_variance.png"), 
+       height = 4, width = 5)
+
+# print coefficients to copy into latex
+l <- ""
+for(n in 1:12) 
+  l <- paste0(l, " + ",round(gammaK(n, 12, -0.5), 4), "y_{t-", n, "}")
+l
+
