@@ -34,7 +34,7 @@ create_plots <- function(df, problem) {
 ############################################
 
 # Generate data
-N <- 1000000
+N <- 10000
 df1 <-
   tibble(u = runif(N, 0, 1)) %>%
   mutate(
@@ -119,6 +119,41 @@ ggplot(plot_df2) +
 
 ggsave(paste0(out, "p", 2, "_prediction_variance.png"), height = 4, width = 5)
 for (i in 1:3) print(gamma(i, b[1], b[2]))
+
+
+# check the resutls of the prediction:
+
+get_prediction <- function(order, df){
+  df[paste0('pred_N')] <- 0
+  for (i in 1:order){
+    df[paste0('pred_N')] <- df[paste0('pred_N')] - 
+      gamma(i, b[1], b[2]) * dplyr::lag(df$y, i) 
+  }
+  data.frame(order = order, pred = df[paste0('pred_N')], y = df$y) %>% 
+    mutate(error = pred_N - y)
+}
+
+
+plot_df2 <- map_dfr(1:10, get_prediction, df = df2)
+
+ggplot(plot_df2 %>% filter(order < 5)) +
+  geom_point(aes(x = y, y = pred_N)) + 
+  geom_smooth(aes(x = y, y = pred_N), alpha = 0.1)+
+  facet_wrap(~order)
+ggsave(paste0(out, "p", 2, "_empirical_prediction_scatter.png"), height = 4, width = 5)
+
+ggplot(plot_df2) +
+  geom_density(aes(x = error)) + 
+  facet_wrap(~order)
+
+ggplot(plot_df2 %>% filter(order < 5), aes(group = order)) +
+  geom_density(aes(x = error, color = order)) 
+
+# Make a table of variances 
+plot_df2 %>% 
+  group_by(order) %>% 
+  summarise(var = sd(error, na.rm = TRUE)^2) %>% xtable
+  
 
 ############################################
 # Problem 3
