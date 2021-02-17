@@ -19,8 +19,9 @@ acf(df$Ya[!is.na(df$Ya)])
 acf(df$Yb[!is.na(df$Yb)])
 
 
-t <- seq(1,50)
-y <- sin(0.5*pi*t)
-plot.ts(t,y)
-
 # Slide 18
+Y  <- matrix(c(1,0,-1))
+mu <- 0
+a  <- function(x, L) x + b * lag(x, L)
+
+sigma <- 

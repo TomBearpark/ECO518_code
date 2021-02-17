@@ -17,8 +17,8 @@ metrop <- function(n, eps, l, intial = 0) {
   x <- intial
   vec[0] <- x
   for (i in 2:n) {
-    innovation <- rnorm(1, 0, eps)
-    candidate <- x + innovation
+    innovation   <- rnorm(1, 0, eps)
+    candidate    <- x + innovation
     accept_ratio <- l(candidate) / l(x)
     u <- runif(1, 0, 1)
     if(accept_ratio > u) x <- candidate
