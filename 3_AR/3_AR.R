@@ -1,7 +1,8 @@
-######################################
+############################################################################
 # 0 Set up environment, load packages and data
-######################################
+############################################################################
 rm(list = ls())
+set.seed(1)
 
 # Set paths
 root <- paste0("/Users/tombearpark/Documents/princeton/",
@@ -25,9 +26,14 @@ autoplot(df) /
 autoplot(diff(df)) /
 autoplot(diff(df, differences = 2))
 
-######################################
+# Save in a convenient format for later plotting
+plot_df <- df %>% as.data.frame() %>% 
+  mutate(date = row_number() - length(df), 
+         q = 0.5001, quantile = "historic")
+
+############################################################################
 # 1. Fit a 9th order linear AR model to the data. 
-######################################
+############################################################################
 
 # Estimation of the model can be done with a call to rfvar3(). 
 # By default rfvar3() uses an improper prior that shrinks toward 
@@ -46,14 +52,14 @@ AR9 <- rfvar3(
   ic = NULL,
   sigpar = NULL)
 
-# Check i can get the same thing in base R
+# Check I can get the same thing in base R
 baseR_AR <- ar(df, aic = FALSE, order.max = 9, method = "ols")
-coefs_df <- data.frame(sims = AR9$By[,,seq(1, dim(AR9$By)[3])], 
+data.frame(sims = AR9$By[,,seq(1, dim(AR9$By)[3])], 
                        baseR = baseR_AR$ar)
 
-######################################
+############################################################################
 # 2. Forecast the next 270 days, using the estimates
-######################################
+############################################################################
 # The y0 agument of the forecasting commands should be dimensioned as 
 # a 9 x 1 matrix. It should also be a time series object with start 
 # date and frequency. Check that this is true with str(y0).
@@ -80,18 +86,19 @@ f <- fcast(y0 = y0,         # values of time series to forecast from
            )
 
 # Plot! 
+f <- window(f, start = c(2021,43))
 ts.plot(df, xlim = (c(2020.2, 2022)), 
         main = "Historic and forecast USA new Covid-19 Infections", 
         ylab = "New Infections (Log)", xlab = "Date")
-points(window(f, start = c(2021,42)), type = "l", col = 2)
+points(f, type = "l", col = 2)
 
-######################################
+############################################################################
 # 3. 
 # Sample 1000 draws from the posterior distribution of AR coefficients and 
 # residual variance to generate a forecast with error bands around the 
 # forecast that reflects (only) the uncertainty about the parameters of 
 # the model. (Make these 90% and 68% bands.)
-######################################
+############################################################################
 
 # Generation of draws from the posterior for 
 # the parameters can then be done with a call to postdraw()
@@ -110,6 +117,7 @@ draws_df <-
   t() %>% 
   as_tibble()
 
+# Plot the parameter pdfs
 draws_df %>% 
   pivot_longer(cols = V1:V9, names_to = "lag") %>% 
   mutate(lag = paste0("lag ", substr(lag, 2, 2))) %>% 
@@ -125,15 +133,15 @@ draws_df %>%
 # (with whichs=0 or, with whichs left at its default value, 
 #   based on both parameter and future shock uncertainty.
 ?fcastBand
-p_vals <- c(10, 32, 50, 68, 90)
+p_vals <- c(5, 16, 50, 84, 95)
 
-f_param_un <- 
+fc_draws <- 
   fcastBand(
     pdout = draws,
     y0,
     horiz = 270,
     pctiles = p_vals,
-    whichv = NULL,
+    # whichv = NULL,
     whichs = 0,
     main = "Parameter Uncertainty Forecast Bands",
     file = paste0(out, "3_param_only_uncertainty.pdf"), 
@@ -141,35 +149,107 @@ f_param_un <-
     const = TRUE
   )
 
-fc_draws <- f_param_un$fc %>% 
-  as.data.frame.table() %>% 
-  mutate(date = rep(1:279, 1000)) %>% 
-  group_by(Var3) %>% 
-    mutate(draw = cur_group_id()) %>% 
-  ungroup() %>% 
-  select(-c(Var1, var, Var3), value = Freq)
+# Function for converting the results of fcastBand to a dataframe
+format_fc <- function(fc_draws){
+  fc_draws$fc %>% 
+    as.data.frame.table() %>% 
+    mutate(date = rep(1:279, 1000)) %>% 
+    group_by(Var3) %>% 
+      mutate(draw = cur_group_id()) %>% 
+    ungroup() %>% 
+    select(-c(Var1, var, Var3), value = Freq) %>% 
+    filter(date > 9) %>% 
+    mutate(date = rep(1:270, 1000))
+}
 
-fc_draws %>% filter(draw %in% seq(1,1000)) %>% 
-  mutate(draw = factor(draw)) %>% 
+# Function to take quantiles across draws at each date, return a nice plot
+plot_quantiles <- function(forecast_bands, p_vals, plot_df, title=NULL){
+  forecast_bands %>% 
+    group_by(date) %>% 
+    summarise(x = quantile(value, p_vals / 100), 
+              q = p_vals/ 100) %>% 
+    ungroup() %>% 
+    mutate(quantile = case_when(
+      q %in% c(0.05, 0.95) ~ "5-95", 
+      q %in% c(0.16, 0.84) ~ "16-84",
+      q == 0.5 ~ "median"
+    )) %>% 
+    bind_rows(plot_df) %>% 
+    ggplot() + 
+    geom_line(aes(x = date, y = x, group = q, color = quantile))
+}
+
+fc_draws <- format_fc(fc_draws)
+plot_quantiles(fc_draws, p_vals, plot_df)
+
+############################################################################
+# (4) Generate error bands that include effects both of uncertainty about the 
+# model parameters and uncertainty about future disturbance terms.
+############################################################################
+
+fc_draws_full <- 
+  fcastBand(
+    pdout = draws,
+    y0,
+    horiz = 270,
+    pctiles = p_vals,
+    main = "Parameter and Shock Uncertainty Forecast Bands",
+    file = paste0(out, "3_param_and_shock_uncertainty.pdf"), 
+    xdata = NULL,
+    const = TRUE
+  )
+fc_draws_full <- format_fc(fc_draws_full)
+plot_quantiles(fc_draws_full, p_vals, plot_df, title= "FULL")
+
+
+############################################################################
+# (5) Plot, on a single graph, 20 of the randomly drawn forecast time 
+# series that include the effects of both kinds of uncertainty. 
+# (This is a different way of visualizing forecast uncertainty.)
+############################################################################
+sample_index <- sample(1:1000, 20)
+
+fc_draws_full %>% 
+  filter(draw %in% sample_index)  %>% 
   ggplot() + 
-  geom_line(aes( x = date, y = value, color = draw), alpha= 0.3) + 
-  theme(legend.position = "none") 
+  geom_line(aes(x = date, y = value, color = as.factor(draw)))
 
-fc_draws %>% 
-  group_by(date) %>% 
-  summarise(x = quantile(value, p_vals / 100), 
-            q = p_vals/ 100) %>% 
-  ungroup() %>% 
-  mutate(quantile = case_when(
-    q %in% c(0.1, 0.9) ~ "10-90", 
-    q %in% c(0.32, 0.68) ~ "32-68",
-    q == 0.5, "median"
-  )) %>% 
-  ggplot() + 
-  geom_line(aes(x = date, y = x, color = quantile))
-p
 
-  
+############################################################################
+# (6) Using the same draws from the posterior and future shocks, 
+# evaluate the posterior probability that the rate of new infections 
+# is smaller at the end of the forecast period than at the start.
+############################################################################
+
+fc_draws_full %>% 
+  filter(date %in% c(1, 270)) %>% 
+  pivot_wider(names_from = date, names_prefix = "date") %>% 
+  mutate(increased = ifelse(date1<date270, 1, 0)) %>% 
+  summarise(p = mean(increased))
+
+
+############################################################################
+# (7) Using the unconditional joint pdf of the initial conditions implied 
+# by the point-estimate of the parameters, calculate how many standard 
+# deviations from the process mean is the initial observation. 
+# If your point estimates imply an unstable root, you won’t be able to 
+# do this part, so start by calculating the roots and checking whether 
+# they are all in the stable region.
+############################################################################
+
+
+
+############################################################################
+# (8) Use a histogram of the residuals and a normal q-q plot of them to
+# assess whether the normality assumption is a reasonable approximation.
+############################################################################
+
+
+
+
+
+
+
 
 
 
