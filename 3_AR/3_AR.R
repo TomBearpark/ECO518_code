@@ -28,8 +28,7 @@ autoplot(diff(df, differences = 2))
 
 # Save in a convenient format for later plotting
 plot_df <- df %>% as.data.frame() %>% 
-  mutate(date = row_number() - length(df), 
-         q = 0.5001, quantile = "historic")
+  mutate(date = row_number() - length(df))
 
 ############################################################################
 # 1. Fit a 9th order linear AR model to the data. 
@@ -174,7 +173,8 @@ plot_quantiles <- function(forecast_bands, p_vals, plot_df, title=NULL){
       q %in% c(0.16, 0.84) ~ "16-84",
       q == 0.5 ~ "median"
     )) %>% 
-    bind_rows(plot_df) %>% 
+    bind_rows(plot_df %>% mutate(
+              q = 0.5001, quantile = "historic")) %>% 
     ggplot() + 
     geom_line(aes(x = date, y = x, group = q, color = quantile))
 }
@@ -201,7 +201,6 @@ fc_draws_full <-
 fc_draws_full <- format_fc(fc_draws_full)
 plot_quantiles(fc_draws_full, p_vals, plot_df, title= "FULL")
 
-
 ############################################################################
 # (5) Plot, on a single graph, 20 of the randomly drawn forecast time 
 # series that include the effects of both kinds of uncertainty. 
@@ -213,7 +212,6 @@ fc_draws_full %>%
   filter(draw %in% sample_index)  %>% 
   ggplot() + 
   geom_line(aes(x = date, y = value, color = as.factor(draw)))
-
 
 ############################################################################
 # (6) Using the same draws from the posterior and future shocks, 
@@ -227,7 +225,6 @@ fc_draws_full %>%
   mutate(increased = ifelse(date1<date270, 1, 0)) %>% 
   summarise(p = mean(increased))
 
-
 ############################################################################
 # (7) Using the unconditional joint pdf of the initial conditions implied 
 # by the point-estimate of the parameters, calculate how many standard 
@@ -237,6 +234,24 @@ fc_draws_full %>%
 # they are all in the stable region.
 ############################################################################
 
+# To do this one... 
+
+coef_vec <- 
+  AR9$By[,,] %>% 
+  unlist() 
+
+roots <- 
+  coef_vec %>% 
+  as.vector() %>% 
+  polyroot() %>% 
+  Mod()
+
+# we can see they are all outside the unit circle! 
+
+# Calculate distance
+process_mean <- mean(df)
+acf <- ARMAacf(ar = coef_vec, ma = NULL, lag.max = 9, pacf = TRUE)
+(process_mean - df[1]) / sqrt(acf[1])
 
 
 ############################################################################
@@ -244,8 +259,18 @@ fc_draws_full %>%
 # assess whether the normality assumption is a reasonable approximation.
 ############################################################################
 
+residuals <- 
+  AR9$u %>% 
+  as.data.frame() %>% 
+  rename(residuals = 1) 
 
+# Histogram of residuals
+residuals %>% 
+  ggplot() + 
+  geom_density(aes(x = residuals))
 
+# QQplot
+qqnorm(residuals$residuals)
 
 
 
