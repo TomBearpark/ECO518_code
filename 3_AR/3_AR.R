@@ -21,10 +21,10 @@ theme_set(theme_bw())
 load("logcovidcases.RData")
 df <- cfd19ts
 
-# Note - this is clearly not stationary. Neither are the differences
-autoplot(df) /
-autoplot(diff(df)) /
-autoplot(diff(df, differences = 2))
+# Note - doesn't look very stationary! Neither do the differences
+(autoplot(df) + ggtitle("USA log covid cases, rolling weekly average") ) /
+autoplot(diff(df))  + ggtitle("First difference")
+ggsave(paste0(out, "/0_diagnostic_plot.png"), height = 5, width = 6)
 
 # Save in a convenient format for later plotting
 plot_df <- df %>% as.data.frame() %>% 
@@ -39,7 +39,7 @@ plot_df <- df %>% as.data.frame() %>%
 # persistence. You can omit that prior by setting lambda=NULL, 
 # mu=NULL. You can choose whether or not to use the prior.
 
-?rfvar3
+# ?rfvar3
 AR9 <- rfvar3(
   ydata = df,
   lags = 9,
@@ -53,8 +53,14 @@ AR9 <- rfvar3(
 
 # Check I can get the same thing in base R
 baseR_AR <- ar(df, aic = FALSE, order.max = 9, method = "ols")
-data.frame(sims = AR9$By[,,seq(1, dim(AR9$By)[3])], 
+q1_results <- data.frame(sims = AR9$By[,,seq(1, dim(AR9$By)[3])], 
                        baseR = baseR_AR$ar)
+
+# print coefficients to copy into latex
+l <- paste0(round(AR9$Bx,4))
+for(n in 1:9) 
+  l <- paste0(l, " + ",round(q1_results$sims[n], 4), "y_{t-", n, "}")
+l
 
 ############################################################################
 # 2. Forecast the next 270 days, using the estimates
@@ -86,10 +92,13 @@ f <- fcast(y0 = y0,         # values of time series to forecast from
 
 # Plot! 
 f <- window(f, start = c(2021,43))
-ts.plot(df, xlim = (c(2020.2, 2022)), 
-        main = "Historic and forecast USA new Covid-19 Infections", 
-        ylab = "New Infections (Log)", xlab = "Date")
-points(f, type = "l", col = 2)
+
+png(filename = paste0(out, "2_forecast.png"), height = 1000, width = 1200, res=200)
+  ts.plot(df, xlim = (c(2020.2, 2022)), 
+          main = "Historic and forecast USA new Covid-19 Infections", 
+          ylab = "New Infections (Log)", xlab = "Date")
+  points(f, type = "l", col = 2)
+dev.off()
 
 ############################################################################
 # 3. 
@@ -102,7 +111,7 @@ points(f, type = "l", col = 2)
 # Generation of draws from the posterior for 
 # the parameters can then be done with a call to postdraw()
 
-?postdraw
+# ?postdraw
 draws <- 
   postdraw(
     AR9,               # fitted AR model 
@@ -119,11 +128,13 @@ draws_df <-
 # Plot the parameter pdfs
 draws_df %>% 
   pivot_longer(cols = V1:V9, names_to = "lag") %>% 
-  mutate(lag = paste0("lag ", substr(lag, 2, 2))) %>% 
+  mutate(lag = paste0("Lag ", substr(lag, 2, 2), " coefficient")) %>% 
   ggplot() + 
   geom_density(aes(x = value)) + 
   facet_wrap(~lag) + 
   ggtitle("Parameter Density Plots")
+
+ggsave(paste0(out, "/3_parameter_uncertainty.png"), height = 8, width = 10)
 
 # A set of draws from the posterior on the forecast can be generated 
 # with fcastBand(). This program will make plots showing error bands 
@@ -131,7 +142,9 @@ draws_df %>%
 # It can show uncertainty based on parameter values alone 
 # (with whichs=0 or, with whichs left at its default value, 
 #   based on both parameter and future shock uncertainty.
-?fcastBand
+
+# ?fcastBand
+
 p_vals <- c(5, 16, 50, 84, 95)
 
 fc_draws <- 
@@ -162,25 +175,30 @@ format_fc <- function(fc_draws){
 }
 
 # Function to take quantiles across draws at each date, return a nice plot
-plot_quantiles <- function(forecast_bands, p_vals, plot_df, title=NULL){
+plot_quantiles <- function(forecast_bands, p_vals, plot_df, title=NULL,
+                           file, out){
   forecast_bands %>% 
     group_by(date) %>% 
     summarise(x = quantile(value, p_vals / 100), 
               q = p_vals/ 100) %>% 
     ungroup() %>% 
     mutate(quantile = case_when(
-      q %in% c(0.05, 0.95) ~ "5-95", 
-      q %in% c(0.16, 0.84) ~ "16-84",
-      q == 0.5 ~ "median"
+      q %in% c(0.05, 0.95) ~ "5-95 Forecast Band", 
+      q %in% c(0.16, 0.84) ~ "16-84 Forecast Band",
+      q == 0.5 ~ "Median Forecast"
     )) %>% 
     bind_rows(plot_df %>% mutate(
-              q = 0.5001, quantile = "historic")) %>% 
+              q = 0.5001, quantile = "Historic data")) %>% 
     ggplot() + 
-    geom_line(aes(x = date, y = x, group = q, color = quantile))
+    geom_line(aes(x = date, y = x, group = q, color = quantile)) + 
+    ylab("Log COVID 19 New Infections") + xlab("Forecast days ahead")+ 
+    theme(legend.title = element_blank())
+  ggsave(file = paste0(out, file), height = 4, width = 6)
 }
 
 fc_draws <- format_fc(fc_draws)
-plot_quantiles(fc_draws, p_vals, plot_df)
+plot_quantiles(fc_draws, p_vals, plot_df, out = out, 
+               file = "3_quantiles_param_only.png")
 
 ############################################################################
 # (4) Generate error bands that include effects both of uncertainty about the 
@@ -199,7 +217,8 @@ fc_draws_full <-
     const = TRUE
   )
 fc_draws_full <- format_fc(fc_draws_full)
-plot_quantiles(fc_draws_full, p_vals, plot_df, title= "FULL")
+plot_quantiles(fc_draws_full, p_vals, plot_df, out = out, 
+               file = "4_quantiles_full_uncertainty.png")
 
 ############################################################################
 # (5) Plot, on a single graph, 20 of the randomly drawn forecast time 
@@ -208,10 +227,14 @@ plot_quantiles(fc_draws_full, p_vals, plot_df, title= "FULL")
 ############################################################################
 sample_index <- sample(1:1000, 20)
 
-fc_draws_full %>% 
+p <- fc_draws_full %>% 
   filter(draw %in% sample_index)  %>% 
   ggplot() + 
-  geom_line(aes(x = date, y = value, color = as.factor(draw)))
+  geom_line(aes(x = date, y = value, color = as.factor(draw))) + 
+  theme(legend.position = "none") + 
+  xlab("Forecast days ahead") + ylab("Log COVID 19 New Infections") 
+  
+ggsave(p, file = paste0(out, "5_20_random_forecasts.png"), height = 5, width = 5)
 
 ############################################################################
 # (6) Using the same draws from the posterior and future shocks, 
@@ -222,7 +245,7 @@ fc_draws_full %>%
 fc_draws_full %>% 
   filter(date %in% c(1, 270)) %>% 
   pivot_wider(names_from = date, names_prefix = "date") %>% 
-  mutate(increased = ifelse(date1<date270, 1, 0)) %>% 
+  mutate(increased = ifelse(date1>date270, 1, 0)) %>% 
   summarise(p = mean(increased))
 
 ############################################################################
@@ -234,17 +257,17 @@ fc_draws_full %>%
 # they are all in the stable region.
 ############################################################################
 
-# To do this one... 
-
 coef_vec <- 
   AR9$By[,,] %>% 
   unlist() 
 
 roots <- 
-  coef_vec %>% 
+  c(1, -coef_vec) %>% 
   as.vector() %>% 
   polyroot() %>% 
   Mod()
+
+roots %>% sort() %>% round(4)
 
 # we can see they are all outside the unit circle! 
 
@@ -252,6 +275,13 @@ roots <-
 process_mean <- mean(df)
 acf <- ARMAacf(ar = coef_vec, ma = NULL, lag.max = 9, pacf = TRUE)
 (process_mean - df[1]) / sqrt(acf[1])
+
+
+# Use some canned routines to check if it is stationary
+lag.length = 25
+Box.test(df, lag=lag.length, type="Ljung-Box") # 
+library(tseries)
+adf.test(df)
 
 
 ############################################################################
@@ -268,11 +298,12 @@ residuals <-
 residuals %>% 
   ggplot() + 
   geom_density(aes(x = residuals))
+ggsave(file = paste0(out, "8_residuals_density.png"), height = 5, width = 5)
 
 # QQplot
+png(filename = paste0(out, "8_qqplot.png"), height = 1000, width = 1200, res=200)
 qqnorm(residuals$residuals)
-
-
+dev.off()
 
 
 
