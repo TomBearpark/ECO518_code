@@ -19,9 +19,40 @@ acf(df$Ya[!is.na(df$Ya)])
 acf(df$Yb[!is.na(df$Yb)])
 
 
-# Slide 18
-Y  <- matrix(c(1,0,-1))
-mu <- 0
-a  <- function(x, L) x + b * lag(x, L)
+# Slide 18, estimating an MA
+Y  <- matrix(c(1, 0, -1))
+b  <- 0.5
 
-sigma <- 
+L <- function(b, sigma2, Y){
+  message("This function assumes an MA1 process!")
+  N <- length(Y)
+  mu <- rep(0, length(Y))
+  sigma <- diag((1+b^2) * sigma2, nrow = N, ncol = N)
+  for (i in 1:N-1){
+    sigma[i, i + 1] <- sigma[i+1, i] <- b * sigma2
+  }
+  # Calculate the likelihood
+  -0.5 * log(det(sigma)) - 0.5 * t(Y - mu) %*% solve(sigma) %*% (Y - mu)
+}
+
+L(0.5, 1, Y )
+# test it -find the MLE
+df <- 
+  tibble(epsilon = rnorm(100)) %>% 
+  mutate(l_epsilon = dplyr::lag(epsilon), 
+         y = epsilon + b * l_epsilon) %>% 
+  filter(!is.na(y))
+
+Y <- df["y"] %>% as.matrix()
+
+L1 <- function(param) L(b = param[1], sigma = param[2], Y = Y)
+optim(c(0.1, 0.9), L1)
+
+
+
+
+
+
+
+
+
