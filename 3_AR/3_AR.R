@@ -15,7 +15,7 @@ setwd(dir)
 if(!require(IDex2019)) 
   install.packages("IDex2019", repos = NULL, type = "source")
 if(!require(pacman)) install.packages("pacman")
-pacman::p_load(IDex2019, tidyverse, ggfortify, patchwork, zoo)
+pacman::p_load(IDex2019, tidyverse, ggfortify, patchwork, zoo, tseries)
 theme_set(theme_bw())
 # Load data, and plot a simple time series
 load("logcovidcases.RData")
@@ -55,6 +55,16 @@ AR9 <- rfvar3(
 baseR_AR <- ar(df, aic = FALSE, order.max = 9, method = "ols")
 q1_results <- data.frame(sims = AR9$By[,,seq(1, dim(AR9$By)[3])], 
                        baseR = baseR_AR$ar)
+
+# add a version estimated by OLS to make sure i know whats up
+estimate_df <- plot_df %>% as_tibble()
+for(i in 1:9){
+  estimate_df[paste0("lag", i)] = dplyr::lag(as.vector(estimate_df$x), i)
+  if(i!=1) f <- paste0(f, " + lag", i)
+  else f <- "lag1"
+}
+lmcoefs <- lm(data = estimate_df, formula(paste0("x ~ ", f)))
+q1_results$lm <- coef(lmcoefs[1])[2:10]
 
 # print coefficients to copy into latex
 l <- paste0(round(AR9$Bx,4))
@@ -236,6 +246,16 @@ p <- fc_draws_full %>%
   
 ggsave(p, file = paste0(out, "5_20_random_forecasts.png"), height = 5, width = 5)
 
+q <- fc_draws %>% 
+  filter(draw %in% sample_index)  %>% 
+  ggplot() + 
+  geom_line(aes(x = date, y = value, color = as.factor(draw))) + 
+  theme(legend.position = "none") + 
+  xlab("Forecast days ahead") + ylab("Log COVID 19 New Infections") 
+
+ggsave(q, file = paste0(out, "5_20_random_forecasts_param_uncertainty.png"), 
+       height = 5, width = 5)
+
 ############################################################################
 # (6) Using the same draws from the posterior and future shocks, 
 # evaluate the posterior probability that the rate of new infections 
@@ -251,7 +271,7 @@ fc_draws_full %>%
 ############################################################################
 # (7) Using the unconditional joint pdf of the initial conditions implied 
 # by the point-estimate of the parameters, calculate how many standard 
-# deviations from the process mean is the initial observation. 
+# deviations from the process mean is the initial observation.        
 # If your point estimates imply an unstable root, you won’t be able to 
 # do this part, so start by calculating the roots and checking whether 
 # they are all in the stable region.
@@ -271,18 +291,44 @@ roots %>% sort() %>% round(4)
 
 # we can see they are all outside the unit circle! 
 
+# calculate the variance of the process, using the slides (slide 32)
+B          <- matrix(rep(0, 9*9), 9, 9)
+B[1,]      <- c(AR9$By)
+B[2:9,1:8] <- diag(8)
+Sigma      <- matrix(rep(0, 9*9), 9, 9)
+Sigma[1,1] <- var(AR9$u)
+
+
+divide <- function(x) 1/x
+# Check we get the same thing as before 
+eigen(B)$values %>% divide %>% Mod() %>% sort %>% round(4)
+
+# Sigma matrix for companion system, stacked
+Sigma_stacked     <- matrix(rep(0, 81), 81,1)
+Sigma_stacked[1,] <- var(AR9$u)
+
+# Solve for Var(y) matrix, stacked
+R_y_0_stacked <- solve(diag(81) - kronecker(B,B), Sigma_stacked)
+R_y_0_stacked[1]
+
 # Calculate distance
-process_mean <- mean(df)
-acf <- ARMAacf(ar = coef_vec, ma = NULL, lag.max = 9, pacf = TRUE)
-(process_mean - df[1]) / sqrt(acf[1])
+mu <- AR9$Bx/sum(c(1, -AR9$By))
+(mu - df[1]) / sqrt(R_y_0_stacked[1])
 
 
-# Use some canned routines to check if it is stationary
-lag.length = 25
-Box.test(df, lag=lag.length, type="Ljung-Box") # 
-library(tseries)
-adf.test(df)
-
+# Alternative, using slide 33, Solve via doubling algorithm
+Omegalast <- Sigma
+Wlast     <- B
+convergent_path <- c()
+for (n in 1:100) {
+  Omeganext <- Omegalast + Wlast %*% Omegalast %*% t(Wlast)
+  Omegalast <- Omeganext
+  Wlast     <- Wlast %*% Wlast
+  convergent_path <- c(convergent_path, Omegalast[1,1])
+}
+plot.ts(convergent_path) # note the quick convergence! 
+print(sprintf("Var(y) = %9.3f", Omegalast[1,1]))
+# we get the same thing as before
 
 ############################################################################
 # (8) Use a histogram of the residuals and a normal q-q plot of them to
