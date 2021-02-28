@@ -43,10 +43,11 @@ df <-
          y = epsilon + b * l_epsilon) %>% 
   filter(!is.na(y))
 
-Y <- df["y"] %>% as.matrix()
+Y <- as.matrix(df["y"])
+L1 <- function(param) L(b = param[1], sigma2 = 1, Y = Y)
+MLE <- optim(c(0.1), L1)
 
-L1 <- function(param) L(b = param[1], sigma = param[2], Y = Y)
-optim(c(0.1, 0.9), L1)
+
 
 
 

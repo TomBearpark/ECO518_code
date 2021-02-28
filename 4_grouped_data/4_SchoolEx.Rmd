@@ -1,0 +1,250 @@
+---
+title: "R Notebook"
+output: html_notebook
+authors: Tom, Casey, and Eric
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+# ECO518 PS4
+
+# 0. Set up
+
+############################################## 
+
+```{r}
+# Load packages
+if(!require(pacman)) install.packages("pacman")
+pacman::p_load(ggplot2, dplyr, sf, tigris, 
+               viridis, patchwork, sandwich, nlme, car, jtools)
+theme_set(theme_bw())
+# Set paths
+dir <- paste0("/Users/tombearpark/Documents/princeton/1st_year/", 
+              "term2/ECO518_Metrics2/sims/exercises/4_grouped_data/")
+out <- paste0(dir, "out/")
+# Load in the data
+load(paste0(dir, "caschool.RData"))
+df <- tibble(caschool)
+# load a shapefile for maps
+cal <- counties(state = "California", cb = TRUE)
+```
+
+############################################## 
+
+# 1. Data visualisation
+
+############################################## 
+
+```{r}
+plot_df <- 
+  left_join(cal, df %>% group_by(county) %>% tally(), 
+      by = c("NAME" = "county")) %>%  
+  mutate(obs = ifelse(is.na(n), 0, n))
+
+# Make sure the merge worked properly 
+stopifnot(
+  dim(anti_join(df %>% group_by(county) %>% tally(), 
+                cal, by = c("county" = "NAME")))[1] == 0)
+
+wrap_elements(
+  (ggplot(plot_df) + geom_sf(aes(fill = n)) + 
+    scale_fill_viridis(na.value = "white")) + 
+  (ggplot(plot_df) + geom_histogram(aes(x = n)))) 
+```
+
+############################################## 
+
+# 2. Exercise
+
+############################################## 
+
+## Problem 1
+
+*Estimate a linear regression of the average test score (testscr) on
+student-teacher ratio, computers per student, and expenditures per
+student. Determine whether the three variables have explanatory power by
+an F-Test of the hypothesis that all three have zero coefficients and
+via the Bayesian information criterion (BIC). The latter can be computed
+from an F-statistic: The BIC rejects the restriction when the
+F-statistic exceeds the log of the sample size.*
+
+```{r}
+N <- length(df$avginc)
+reg1 <- "testscr ~ str + comp_stu + expn_stu"
+lm1 <- lm(data = df, formula(reg1))
+```
+
+The F stat is 14.96.
+
+```{r}
+compare_models <- function(lm_restricted, lm_unrestricted, N){
+    
+    RSSR <- sum(lm_restricted$residuals^2)
+    RSSU <- sum(lm_unrestricted$residuals^2)
+    k    <- length(lm_unrestricted$coefficients) - length(lm_restricted$coefficients) 
+    
+    Fstat <- ((RSSR - RSSU) / k) / (RSSU / (N-k-1))
+    pVal  <- pf(Fstat, k, N-k-1, lower.tail = FALSE)
+    
+    BIC_R <- N * log(RSSR / N) + length(lm_restricted$coefficients)  * log(N)
+    BIC_U <- N * log(RSSU / N) + length(lm_unrestricted$coefficients)  * log(N)
+    
+    lowerBIC <- ifelse(BIC_R < BIC_U, "restricted", "unrestricted")
+
+    return(
+      tibble(Fstat = Fstat, pVal = pVal, 
+             BIC_R = BIC_R, BIC_U = BIC_U, logN = log(N), 
+             lowest_BIC_model = lowerBIC))
+}
+lm0 <- lm(data = df, testscr ~ 1)
+comparison_1 <- compare_models(lm0, lm1, N)
+comparison_1
+```
+
+-   BIC is smallest for the true model. BIC is smallest for the more
+    complex model
+
+    -   We can also see that the F-stat is larger than the log of the
+        sample size, so we reject the restriction
+
+-   F stat strongly rejects the Null that the coefficients aren't
+    jointly significant
+
+```{r}
+Anova(lm1)
+plot_summs(lm1, scale = TRUE)
+
+```
+
+## Problem 2
+
+*Do the same thing with a regression that adds the demographic
+variables: Average income, subsidized meals, calWorks per cent, and
+English learners percent. Again check whether the three "policy
+variables have explanatory power using an F test and BIC. Here you may
+need to extract the covariance matrix of coefficients from the lm()
+output to construct the F or chi-squared statistic.*
+
+```{r}
+reg2 <- paste0(reg1, " + avginc + meal_pct + calw_pct + el_pct")
+lm2 <- lm(data = df, formula(reg2))
+```
+
+```{r}
+compare_models(lm_restricted = lm1, lm_unrestricted = lm2, N = N)
+```
+
+```{r}
+Anova(lm2)
+plot_summs(lm1,lm2, scale = TRUE)
+
+```
+
+-   Once again, our tests prefer the more complex model
+
+## Problem 3
+
+*Repeat the previous estimations and tests in models that add county
+fixed effects. In R using lm(), this is accomplished by just adding
+"county" to the list of right-hand side variables. (county is a "factor"
+in the R dataframe, so R automatically converts it into the appropriate
+array of dummy variables when including it in a regression.)*
+
+```{r}
+reg3 <- paste0(reg2, "+ county")
+lm3 <- lm(data = df, formula(reg3))
+```
+
+```{r}
+compare_models(lm2, lm3, N)
+```
+
+-   This time, our model doesn't want us to choose the extra complexity
+    in the BIC.
+
+-   However, our F-stat approach prefers the more complex model
+
+```{r}
+Anova(lm3)
+vars <- c("str", "comp_stu", "expn_stu", "avginc", "meal_pct", "calw_pct", "el_pct" )
+plot_summs(lm1, lm2, lm3, coefs = vars, scale = TRUE)
+```
+
+## Problem 4
+
+*The districts vary greatly in size. Average scores might have more
+sampling variation in small districts. Plot the squared residuals from
+the estimated model in 2 against the total enrollment variable. Estimate
+a linear regression of these squared residuals on 1/enrl_tot. Use the
+inverse of these predicted values as the weights argument in lm() (or
+otherwise estimate the corresponding weighted regression estimates) in
+the question 2 regression.*
+
+First, lets plot the squared residuals against the total enrollment
+variable. Color by average income, just to see if that seems like an
+important determinant of this relationship.
+
+```{r}
+df$u2 <- lm2$residuals
+df$sqr_u2 <- lm2$residuals ^ 2
+ggplot(df) + 
+  geom_point(aes(x = sqr_u2, y = enrl_tot, color = log(avginc)), alpha= .7) + 
+  scale_color_viridis()
+```
+
+Next we run a regression weighted by the inverse of the residuals
+
+```{r}
+df$inv_resid_weight_lm2 <- 1 / df$u2
+```
+
+## Problem 5
+
+For at least two of the above regression models, calculate standard
+errors clustered by county. This is done very easily with the vcovCL()
+function from the sandwich package --- so easily that if you're doing it
+this way you might want to see how much difference it makes in all of
+the above regressions.
+
+```{r}
+vcovCL(lm1)
+```
+
+Create a plot - with regression coefficients and the SE, both raw, and
+clustered, for each model.
+
+## Problem 6
+
+Estimate a random effects model, with county effects. In R, use the
+lme() function from the nlme package to estimate the 7-variable
+regression, with random effects by county. You do this by giving lme the
+argument random = ˜1 \| county. Also use the argument method="ML", so
+that the estimation is by maximum likelihood.
+
+## Problem 7
+
+Compare the random effects 7-variable model to the fixed effects model.
+In R, you can do this by re-estimating the fixed-effect model with the
+gls()function from the nlme package, again being sure to use method="ML"
+argument. The summary() function applied to either random effects or
+fixed effects models computed this way deliver both log likelihood and
+BIC values, so the models can be compared both by afrequentist
+chi-squared test based on the log likelihood and via the BIC.
+
+## Problem 8
+
+Finally, for the random effects model, use a regression of its squared
+residuals on 1/(total enrollment) to generate weights for a weighted
+random effects estimation; see if this improves likelihood and/or
+changes important estimates. [Note: I think that in the nlme estimation
+functions the "weights" arguments are variance scales --- the inverse of
+the weights used in lm(). So you would use a weights= ˜w argument to
+lme() if you used weights=1/w in lm()].
+
+## Problem 9
+
+Be ready to discuss: Does the evidence favor an important effect from
+the "controllable" variables? The sizes and signs of the estimated
+effects, not just the significancelevels of tests, should inform your
+views on this.
