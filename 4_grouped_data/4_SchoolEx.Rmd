@@ -81,6 +81,10 @@ lm1 <- lm(data = df, formula(reg1))
 The F stat is 14.96.
 
 ```{r}
+summary(lm1)
+```
+
+```{r}
 compare_models <- function(lm_restricted, lm_unrestricted, N){
     
     RSSR <- sum(lm_restricted$residuals^2)
@@ -116,13 +120,13 @@ comparison_1
 
 ```{r}
 Anova(lm1)
-plot_summs(lm1, scale = TRUE)
 
 ```
 
 ```{r}
 # run a clustered version
 lm1_c <- lm_robust(formula(reg1), data = df, cluster = county)
+summary(lm1_c)
 ```
 
 ## Problem 2
@@ -144,12 +148,19 @@ compare_models(lm_restricted = lm1, lm_unrestricted = lm2, N = N)
 ```
 
 ```{r}
-Anova(lm2)
-plot_summs(lm1,lm2, scale = TRUE)
+summary(lm2)
+```
 
+```{r}
+Anova(lm2)
 ```
 
 -   Once again, our tests prefer the more complex model
+
+```{r}
+lm2_c <- lm_robust(formula(reg2), data = df, cluster = county)
+summary(lm2_c)
+```
 
 ## Problem 3
 
@@ -225,12 +236,13 @@ Next we run a regression weighted by the inverse of the residuals
 ```{r}
 df$weights_lm4 <- 1 / lm4_w$fitted.values
 lm4 <- lm(data = df, formula(reg2), weights = df$weights_lm4)
+summary(lm4)
 ```
 
 Compare model 2 to this weighted version...
 
 ```{r}
-plot_coefs(lm2, lm4, scale = TRUE)
+plot_summs(lm2, lm4, scale = TRUE, model.names = c("Unweighted", "Weighted"))
 ```
 
 ## Problem 5
@@ -247,21 +259,16 @@ plot_summs(lm2, lm2, scale = TRUE,
            model.names = c("OLS SEs", "County-Clustered SEs"))
 ```
 
-```{r}
-# plot_summs(lm3, lm3, scale = TRUE, 
-#            robust = list(FALSE, c(cluster = df$county)), 
-#            model.names = c("OLS SEs", "County-Clustered SEs"), coefs = vars)
-
-
-```
+This is done in code throughout. General comment - clustering doesn't
+make much difference in this setup.
 
 ## Problem 6
 
-Estimate a random effects model, with county effects. In R, use the
+*Estimate a random effects model, with county effects. In R, use the
 lme() function from the nlme package to estimate the 7-variable
 regression, with random effects by county. You do this by giving lme the
 argument random = ˜1 \| county. Also use the argument method="ML", so
-that the estimation is by maximum likelihood.
+that the estimation is by maximum likelihood.*
 
 ```{r}
 RE <- lme(data = df, formula(reg2), random = ~1 | county, method = "ML") 
@@ -300,7 +307,9 @@ lme() if you used weights=1/w in lm()].
 ```{r}
 df$fe_sqr_resid <- FE$residuals^2
 lm8_w <- lm(data = df,  fe_sqr_resid ~ inv_enrl_tot)
-RE_w <- lme(data = df, formula(reg2), random = ~1 | county, method = "ML", weights = ~fe_sqr_resid) 
+df$fe_weights <- lm8_w$fitted.values
+RE_w <- lme(data = df, formula(reg2), random = ~1 | county, 
+            method = "ML", weights = ~fe_weights) 
 summary(RE_w)$tTable
 ```
 
