@@ -19,8 +19,8 @@ editor_options:
 # Load packages
 if(!require(pacman)) install.packages("pacman")
 pacman::p_load(ggplot2, dplyr, sf, tigris, 
-               viridis, patchwork, sandwich, nlme, car, jtools, estimatr, 
-               stargazer)
+               viridis, patchwork, sandwich, nlme, jtools, estimatr, 
+               stargazer, car)
 theme_set(theme_bw())
 # Set paths
 dir <- paste0("/Users/tombearpark/Documents/princeton/1st_year/", 
@@ -305,11 +305,12 @@ the weights used in lm(). So you would use a weights= ˜w argument to
 lme() if you used weights=1/w in lm()].
 
 ```{r}
-df$fe_sqr_resid <- FE$residuals^2
-lm8_w <- lm(data = df,  fe_sqr_resid ~ inv_enrl_tot)
-df$fe_weights <- lm8_w$fitted.values
+df$re_sqr_resid <- RE$residuals[,"county"]^2
+lm8_w           <- lm(data = df,  re_sqr_resid ~ inv_enrl_tot)
+df$re_weights   <- lm8_w$fitted.values
+
 RE_w <- lme(data = df, formula(reg2), random = ~1 | county, 
-            method = "ML", weights = ~fe_weights) 
+            method = "ML", weights = ~re_weights) 
 summary(RE_w)$tTable
 ```
 
@@ -319,3 +320,63 @@ Be ready to discuss: Does the evidence favor an important effect from
 the "controllable" variables? The sizes and signs of the estimated
 effects, not just the significance levels of tests, should inform your
 views on this.
+
+```{r}
+
+comp_df <- data.frame(
+  df,
+  model_1 = lm1$fitted.values, 
+  model_2 = lm2$fitted.values, 
+  model_3 = lm3$fitted.values)
+
+(ggplot(data = comp_df) + 
+  geom_point(aes(x = model_1, y = model_2, color = avginc)) + 
+  scale_color_viridis() + 
+  geom_abline(slope = 1, color = "red") + 
+  ggtitle("Comparison of fitted values") + 
+    theme(legend.position = "none")) + (
+ggplot(data = comp_df) + 
+  geom_point(aes(x = model_2, y = model_3, color = avginc)) + 
+  scale_color_viridis() + 
+  geom_abline(slope = 1, color = "red") + 
+  ggtitle("Comparison of fitted values"))
+
+```
+
+```{r}
+ggplot(data = comp_df) + 
+  geom_point(aes(x = model_2, y = model_3, color = avginc)) + 
+  scale_color_viridis() + 
+  geom_abline(slope = 1, color = "red") + 
+  ggtitle("Comparison of fitted values")
+```
+
+```{r}
+library(caret)
+featurePlot(x = df[vars], y = df$testscr)
+```
+
+```{r}
+# try a lasso regression 
+library(glmnet)
+y <- df$testscr %>% as.matrix()
+X <- model.matrix(formula(paste0(reg2, "+ log(avginc)")), df)
+
+# Helped function for processing results
+get_results = function(fit){
+    tmp_coeffs <- coef(fit)
+    myResults <- data.frame(
+        feature = tmp_coeffs@Dimnames[[1]][ which(tmp_coeffs != 0 ) ], #intercept included
+        coef    = tmp_coeffs              [ which(tmp_coeffs != 0 ) ]  #intercept included
+    )
+    return(myResults)
+}
+
+fit <-  cv.glmnet(X, y)
+plot(fit)
+
+```
+
+```{r}
+get_results(fit)
+```
