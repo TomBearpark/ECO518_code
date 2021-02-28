@@ -1,9 +1,11 @@
 ---
 title: "R Notebook"
-output: html_notebook
+output:
+  pdf_document: default
+  html_notebook: default
 authors: Tom, Casey, and Eric
-editor_options: 
-  markdown: 
+editor_options:
+  markdown:
     wrap: 72
 ---
 
@@ -17,7 +19,8 @@ editor_options:
 # Load packages
 if(!require(pacman)) install.packages("pacman")
 pacman::p_load(ggplot2, dplyr, sf, tigris, 
-               viridis, patchwork, sandwich, nlme, car, jtools)
+               viridis, patchwork, sandwich, nlme, car, jtools, estimatr, 
+               stargazer)
 theme_set(theme_bw())
 # Set paths
 dir <- paste0("/Users/tombearpark/Documents/princeton/1st_year/", 
@@ -117,6 +120,11 @@ plot_summs(lm1, scale = TRUE)
 
 ```
 
+```{r}
+# run a clustered version
+lm1_c <- lm_robust(formula(reg1), data = df, cluster = county)
+```
+
 ## Problem 2
 
 *Do the same thing with a regression that adds the demographic
@@ -154,6 +162,7 @@ array of dummy variables when including it in a regression.)*
 ```{r}
 reg3 <- paste0(reg2, "+ county")
 lm3 <- lm(data = df, formula(reg3))
+lm3_c <- lm_robust(data = df, formula(reg3), cluster = county)
 ```
 
 ```{r}
@@ -182,21 +191,46 @@ otherwise estimate the corresponding weighted regression estimates) in
 the question 2 regression.*
 
 First, lets plot the squared residuals against the total enrollment
-variable. Color by average income, just to see if that seems like an
-important determinant of this relationship.
+variable.
 
 ```{r}
 df$u2 <- lm2$residuals
 df$sqr_u2 <- lm2$residuals ^ 2
-ggplot(df) + 
-  geom_point(aes(x = sqr_u2, y = enrl_tot, color = log(avginc)), alpha= .7) + 
-  scale_color_viridis()
+ggplot(df, aes(x = enrl_tot, y = sqr_u2)) + 
+  geom_point(alpha= .7) + 
+  xlab("Total Enrollment") + ylab("Squared Residuals") + 
+  geom_smooth(method = lm)
+```
+
+Lets also plot the squared residuals against the inverse of total
+enrollment, since that relationship is what we are going to use for our
+weighting scheme.
+
+```{r}
+ggplot(df, aes(x = 1/enrl_tot, y = sqr_u2)) + 
+  geom_point(alpha= .7) + 
+  xlab("Inverse of Total Enrollment") + ylab("Squared Residuals") + 
+  geom_smooth(method = lm)
+```
+
+We can estimate a linear regression, to calculate the weights...
+
+```{r}
+df$inv_enrl_tot <- 1 / df$enrl_tot
+lm4_w <- lm(data = df, sqr_u2 ~ inv_enrl_tot)
 ```
 
 Next we run a regression weighted by the inverse of the residuals
 
 ```{r}
-df$inv_resid_weight_lm2 <- 1 / df$u2
+df$weights_lm4 <- 1 / lm4_w$fitted.values
+lm4 <- lm(data = df, formula(reg2), weights = df$weights_lm4)
+```
+
+Compare model 2 to this weighted version...
+
+```{r}
+plot_coefs(lm2, lm4, scale = TRUE)
 ```
 
 ## Problem 5
@@ -208,11 +242,18 @@ this way you might want to see how much difference it makes in all of
 the above regressions.
 
 ```{r}
-vcovCL(lm1)
+plot_summs(lm2, lm2, scale = TRUE, 
+           robust = list(FALSE, c(cluster = df$county)), 
+           model.names = c("OLS SEs", "County-Clustered SEs"))
 ```
 
-Create a plot - with regression coefficients and the SE, both raw, and
-clustered, for each model.
+```{r}
+# plot_summs(lm3, lm3, scale = TRUE, 
+#            robust = list(FALSE, c(cluster = df$county)), 
+#            model.names = c("OLS SEs", "County-Clustered SEs"), coefs = vars)
+
+
+```
 
 ## Problem 6
 
@@ -221,6 +262,15 @@ lme() function from the nlme package to estimate the 7-variable
 regression, with random effects by county. You do this by giving lme the
 argument random = ˜1 \| county. Also use the argument method="ML", so
 that the estimation is by maximum likelihood.
+
+```{r}
+RE <- lme(data = df, formula(reg2), random = ~1 | county, method = "ML") 
+summary(RE)$tTable
+```
+
+```{r}
+summary(RE)
+```
 
 ## Problem 7
 
@@ -232,6 +282,11 @@ fixed effects models computed this way deliver both log likelihood and
 BIC values, so the models can be compared both by afrequentist
 chi-squared test based on the log likelihood and via the BIC.
 
+```{r}
+FE <- gls(data = df, formula(paste0(reg2, "+ county")), method = "ML") 
+summary(FE)$tTable[1:8, ]
+```
+
 ## Problem 8
 
 Finally, for the random effects model, use a regression of its squared
@@ -242,9 +297,16 @@ functions the "weights" arguments are variance scales --- the inverse of
 the weights used in lm(). So you would use a weights= ˜w argument to
 lme() if you used weights=1/w in lm()].
 
+```{r}
+df$fe_sqr_resid <- FE$residuals^2
+lm8_w <- lm(data = df,  fe_sqr_resid ~ inv_enrl_tot)
+RE_w <- lme(data = df, formula(reg2), random = ~1 | county, method = "ML", weights = ~fe_sqr_resid) 
+summary(RE_w)$tTable
+```
+
 ## Problem 9
 
 Be ready to discuss: Does the evidence favor an important effect from
 the "controllable" variables? The sizes and signs of the estimated
-effects, not just the significancelevels of tests, should inform your
+effects, not just the significance levels of tests, should inform your
 views on this.
