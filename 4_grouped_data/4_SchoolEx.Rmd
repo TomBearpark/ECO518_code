@@ -43,17 +43,19 @@ cal <- counties(state = "California", cb = TRUE)
 plot_df <- 
   left_join(cal, df %>% group_by(county) %>% tally(), 
       by = c("NAME" = "county")) %>%  
-  mutate(obs = ifelse(is.na(n), 0, n))
+  mutate(obs = ifelse(is.na(n), 0, n)) %>% 
+  rename(N=n)
 
 # Make sure the merge worked properly 
 stopifnot(
   dim(anti_join(df %>% group_by(county) %>% tally(), 
                 cal, by = c("county" = "NAME")))[1] == 0)
 
-wrap_elements(
-  (ggplot(plot_df) + geom_sf(aes(fill = n)) + 
+p <- wrap_elements(
+  (ggplot(plot_df) + geom_sf(aes(fill = N)) + 
     scale_fill_viridis(na.value = "white")) + 
-  (ggplot(plot_df) + geom_histogram(aes(x = n)))) 
+  (ggplot(plot_df) + geom_histogram(aes(x = N)))) 
+ggsave(p, file = paste0(out, "0_obs_by_county.png"), height = 5, width = 8)
 ```
 
 ############################################## 
@@ -171,13 +173,18 @@ in the R dataframe, so R automatically converts it into the appropriate
 array of dummy variables when including it in a regression.)*
 
 ```{r}
-reg3 <- paste0(reg2, "+ county")
-lm3 <- lm(data = df, formula(reg3))
-lm3_c <- lm_robust(data = df, formula(reg3), cluster = county)
+reg3.1 <- paste0(reg1, "+ county")
+lm3.1 <- lm(data = df, formula(reg3.1))
+lm3.1_c <- lm_robust(data = df, formula(reg3.1), cluster = county)
+
+
+reg3.2 <- paste0(reg2, "+ county")
+lm3.2 <- lm(data = df, formula(reg3.2))
+lm3.2_c <- lm_robust(data = df, formula(reg3.2), cluster = county)
 ```
 
 ```{r}
-compare_models(lm2, lm3, N)
+compare_models(lm1, lm3.1, N)
 ```
 
 -   This time, our model doesn't want us to choose the extra complexity
@@ -186,9 +193,15 @@ compare_models(lm2, lm3, N)
 -   However, our F-stat approach prefers the more complex model
 
 ```{r}
-Anova(lm3)
-vars <- c("str", "comp_stu", "expn_stu", "avginc", "meal_pct", "calw_pct", "el_pct" )
-plot_summs(lm1, lm2, lm3, coefs = vars, scale = TRUE)
+vars <- c("str", "comp_stu", "expn_stu", 
+          "avginc", "meal_pct", "calw_pct", "el_pct" )
+p <- plot_summs(lm1, lm3.1, coefs = vars, scale = TRUE, 
+                model.names = c("Without County FEs", "With County FEs")) + 
+                theme(legend.position = "none")
+q <- plot_summs(lm2, lm3.2, coefs = vars, scale = TRUE, 
+                model.names = c("Without County FEs", "With County FEs"))
+r <- p + (ggplot() + theme_void()) + q
+ggsave(r, file = paste0(out, "3_comparison_with_FEs.png"), height = 5, width = 9)
 ```
 
 ## Problem 4
@@ -207,10 +220,11 @@ variable.
 ```{r}
 df$u2 <- lm2$residuals
 df$sqr_u2 <- lm2$residuals ^ 2
-ggplot(df, aes(x = enrl_tot, y = sqr_u2)) + 
+p4 <- ggplot(df, aes(x = enrl_tot, y = sqr_u2)) + 
   geom_point(alpha= .7) + 
   xlab("Total Enrollment") + ylab("Squared Residuals") + 
   geom_smooth(method = lm)
+ggsave(p4, file = paste0(out, "4_resids_vs_enrollment.png"), height = 5, width = 5)
 ```
 
 Lets also plot the squared residuals against the inverse of total
@@ -242,7 +256,10 @@ summary(lm4)
 Compare model 2 to this weighted version...
 
 ```{r}
-plot_summs(lm2, lm4, scale = TRUE, model.names = c("Unweighted", "Weighted"))
+png(file = paste0(out, "4_coef_plot_weighted_vs_2.png"), height = 1000, width = 1200, res=200)
+print(plot_summs(lm2, lm4, scale = TRUE, model.names = c("Unweighted", "Weighted")))
+dev.off()
+
 ```
 
 ## Problem 5
@@ -254,9 +271,11 @@ this way you might want to see how much difference it makes in all of
 the above regressions.
 
 ```{r}
+png(file = paste0(out, "5_coef_plot_cluster.png"), height = 1000, width = 1200, res=200)
 plot_summs(lm2, lm2, scale = TRUE, 
            robust = list(FALSE, c(cluster = df$county)), 
            model.names = c("OLS SEs", "County-Clustered SEs"))
+dev.off()
 ```
 
 This is done in code throughout. General comment - clustering doesn't
@@ -329,7 +348,7 @@ comp_df <- data.frame(
   model_2 = lm2$fitted.values, 
   model_3 = lm3$fitted.values)
 
-(ggplot(data = comp_df) + 
+p9 <- (ggplot(data = comp_df) + 
   geom_point(aes(x = model_1, y = model_2, color = avginc)) + 
   scale_color_viridis() + 
   geom_abline(slope = 1, color = "red") + 
@@ -340,27 +359,25 @@ ggplot(data = comp_df) +
   scale_color_viridis() + 
   geom_abline(slope = 1, color = "red") + 
   ggtitle("Comparison of fitted values"))
-
-```
-
-```{r}
-ggplot(data = comp_df) + 
-  geom_point(aes(x = model_2, y = model_3, color = avginc)) + 
-  scale_color_viridis() + 
-  geom_abline(slope = 1, color = "red") + 
-  ggtitle("Comparison of fitted values")
+ggsave(p9, file = paste0(out, "9_fitted_values_comparison.png"), height = 6, width = 9)
 ```
 
 ```{r}
 library(caret)
-featurePlot(x = df[vars], y = df$testscr)
+obj <- featurePlot(x = df[vars], y = df$testscr)
+
+png(file = paste0(out, "0_feature_plot.png"))
+print(obj)
+dev.off()
+
+
 ```
 
 ```{r}
 # try a lasso regression 
 library(glmnet)
 y <- df$testscr %>% as.matrix()
-X <- model.matrix(formula(paste0(reg2, "+ log(avginc)")), df)
+X <- model.matrix(formula(paste0(reg2, "+ log(avginc) + avginc^2")), df)
 
 # Helped function for processing results
 get_results = function(fit){
@@ -373,7 +390,9 @@ get_results = function(fit){
 }
 
 fit <-  cv.glmnet(X, y)
-plot(fit)
+png(paste0(out, "A_lasso.png"))
+  plot(fit)
+dev.off()
 
 ```
 
