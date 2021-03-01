@@ -346,7 +346,7 @@ comp_df <- data.frame(
   df,
   model_1 = lm1$fitted.values, 
   model_2 = lm2$fitted.values, 
-  model_3 = lm3$fitted.values)
+  model_3 = lm3.2$fitted.values)
 
 p9 <- (ggplot(data = comp_df) + 
   geom_point(aes(x = model_1, y = model_2, color = avginc)) + 
