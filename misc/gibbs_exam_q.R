@@ -1,10 +1,16 @@
+# Implements the EC0517 Exam quesiton on gibs for censored data
+
 library(tidyverse)
 
+# Create a dataset
 mu <- 0.5
 sample <- data.frame(Y = rnorm(n = 1000, mean = mu, sd = 1))
+
+# Censor the data below zero
 df <- tibble(sample) %>% 
   mutate(y_obs = ifelse(Y<0, 0, Y))
 
+# Plot the data, make sure its what we expect
 ggplot(df)+
   geom_histogram(aes(x = y_obs))
 ggplot(df)+
@@ -12,7 +18,7 @@ ggplot(df)+
 
 gibbs <- function(df, iterations, initial_mu){
   
-  # 0 get objects together
+  # Step 0 create needed objects 
   N <- length(df$y_obs)
   n_below <- length(df$y_obs[df$y_obs==0])
   mu <- initial_mu
@@ -30,7 +36,6 @@ gibbs <- function(df, iterations, initial_mu){
       }
       drawsY <- c(drawsY, j)
     }
-    
     Y <- c(df$y_obs[df$y_obs != 0], drawsY)
     
     # Step 2: draw mu conditional on Y
@@ -48,7 +53,6 @@ mean(results$mus[2:length(results$mus)])
 
 # Plot results, see if it makes sense... 
 plot.ts(results$mus)
-mean(results$mus)
 
 results$Ys %>% 
   filter(i == 1000) %>% 
