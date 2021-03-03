@@ -1,13 +1,14 @@
 library(tidyverse)
 
-mu <- 1
+mu <- 0.5
 sample <- data.frame(Y = rnorm(n = 1000, mean = mu, sd = 1))
 df <- tibble(sample) %>% 
   mutate(y_obs = ifelse(Y<0, 0, Y))
 
 ggplot(df)+
   geom_histogram(aes(x = y_obs))
-
+ggplot(df)+
+  geom_histogram(aes(x = Y))
 
 gibbs <- function(df, iterations, initial_mu){
   
@@ -43,12 +44,14 @@ gibbs <- function(df, iterations, initial_mu){
   return(list(mus = mus, Ys = tibble(Ys)))
 }
 results <- gibbs(df, 1000, 0.1)
+mean(results$mus[2:length(results$mus)])
 
 # Plot results, see if it makes sense... 
 plot.ts(results$mus)
 mean(results$mus)
 
 results$Ys %>% 
-  filter(i == 100) %>% 
+  filter(i == 1000) %>% 
   ggplot() + 
-  geom_density(aes(x = Ys))
+  geom_histogram(aes(x = Ys), color = "blue", alpha = 0.5) + 
+  geom_histogram(data = df, aes(x = Y), color = "red", alpha = 0.5)
