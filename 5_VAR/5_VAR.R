@@ -13,10 +13,10 @@ if(!require(VARpack2019))
   install.packages("VARpack2019", type = "source", repos = NULL)
 library(VARpack2019)
 library(dplyr)
+library(tidyr)
 library(ggplot2)
 library(ggfortify)
 # library(patchwork)
-library(tidyr)
 library(stargazer)
 theme_set(theme_bw())
 
@@ -92,11 +92,33 @@ ggsave(paste0(out, "2_var_forecast_plots.png"), height = 5, width = 8)
 # 2.2. Compare the log odds ratio:
 data.frame(VAR = c(3, 9, "Odds Ratio"), 
            Value = c(VAR3$var$w , VAR9$var$w, VAR3$var$w / VAR9$var$w)) %>% 
-  stargazer( summary = FALSE)
+  stargazer(summary = FALSE)
 
 
 ####################################################################
-# 3. Estimate a VAR
+# 3. Check the roots
 ####################################################################
+T <- dim(df)[1]
+?sysmat
+
+# VAR3
+mat3 <- sysmat(By=VAR3$var$var$By)
+mat3_eigen <- eigen(mat3)
+mat3_eigen$values[abs(mat3_eigen$values - 1) < 1/T]
+
+# VAR9
+mat9 <- sysmat(By=VAR9$var$var$By)
+mat9_eigen <- eigen(mat9)
+mat9_eigen$values[abs(mat9_eigen$values - 1) < 1/T]
+
+
+####################################################################
+# 4. Plot the IR Plots
+####################################################################
+resp3 <- impulsdtrf(VAR3$var$var, nstep = 48)
+plotir(resp3, file = paste0(out, "4_VAR3_IRF.pdf"), main = "IR Plot VAR 3")
+
+resp9 <- impulsdtrf(VAR9$var$var, nstep = 48)
+plotir(resp9, file = paste0(out, "4_VAR9_IRF.pdf"), main = "IR Plot VAR 9")
 
 
