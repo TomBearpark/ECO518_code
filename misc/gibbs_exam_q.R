@@ -1,37 +1,39 @@
-# Implements the EC0517 Exam quesiton on gibs for censored data
+# Implements the EC0517 Exam question on gibbs sampling for censored data
 
 library(tidyverse)
 
 # Create a dataset
-mu <- 0.5
+mu     <- 0.5
 sample <- data.frame(Y = rnorm(n = 1000, mean = mu, sd = 1))
 
 # Censor the data below zero
-df <- tibble(sample) %>% 
+df <- 
+  tibble(sample) %>% 
   mutate(y_obs = ifelse(Y<0, 0, Y))
 
 # Plot the data, make sure its what we expect
-ggplot(df)+
+ggplot(df) +
   geom_histogram(aes(x = y_obs))
-ggplot(df)+
+ggplot(df) +
   geom_histogram(aes(x = Y))
 
 gibbs <- function(df, iterations, initial_mu){
   
   # Step 0 create needed objects 
-  N <- length(df$y_obs)
+  N       <- length(df$y_obs)
   n_below <- length(df$y_obs[df$y_obs==0])
-  mu <- initial_mu
-  mus <- c()
-  Ys <- data.frame(i=0, Ys=0)
+  mu      <- initial_mu
+  mus     <- c(mu)
+  Ys      <- data.frame(i=0, Ys=df$y_obs[df$y_obs==0])
   
   for (i in 1:iterations){
     
     # Step 1: draw Ys conditional on mu
     drawsY <- c()
+
     for (ii in 1:n_below){
       j <- 0
-      while(j>=0){
+      while(j >= 0){
         j <- rnorm(1, mu, 1)
       }
       drawsY <- c(drawsY, j)
@@ -48,14 +50,22 @@ gibbs <- function(df, iterations, initial_mu){
   }
   return(list(mus = mus, Ys = tibble(Ys)))
 }
-results <- gibbs(df, 1000, 0.1)
+# Run the sampler
+results <- gibbs(df, 10, 0.1)
 mean(results$mus[2:length(results$mus)])
 
 # Plot results, see if it makes sense... 
 plot.ts(results$mus)
+hist(results$mus)
 
 results$Ys %>% 
   filter(i == 1000) %>% 
   ggplot() + 
-  geom_histogram(aes(x = Ys), color = "blue", alpha = 0.5) + 
-  geom_histogram(data = df, aes(x = Y), color = "red", alpha = 0.5)
+  geom_histogram(aes(x = Ys), 
+                 color = "blue", alpha = 0.5) + 
+  geom_histogram(data = df, aes(x = Y), 
+                 color = "red", alpha = 0.5)
+
+
+
+
