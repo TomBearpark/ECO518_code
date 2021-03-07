@@ -18,6 +18,7 @@ library(ggplot2)
 library(ggfortify)
 # library(patchwork)
 library(stargazer)
+library(xtable)
 theme_set(theme_bw())
 
 
@@ -79,6 +80,25 @@ VAR_and_forecast <- function(lags, df){
 VAR3 <- VAR_and_forecast(3, df)
 VAR9 <- VAR_and_forecast(9, df)
 
+VAR3$var$prior 
+VAR3$var$var$Bx 
+
+# Get the coefficients 
+convert_to_latex_matrix <- function(mat, dim = 3, digits = 4){
+  mat %>% 
+  xtable(align = rep("", dim + 1), digits = digits) %>% 
+  print(tabular.environment="bmatrix", digits = digits,
+    hline.after=NULL, include.rownames=FALSE, include.colnames=FALSE)
+}
+for(i in 1:3)
+  convert_to_latex_matrix(VAR3$var$var$By[,,i] )
+
+for(i in 1:9)
+  convert_to_latex_matrix(VAR9$var$var$By[,,i] )
+
+
+VAR9$var$prior
+
 # 2.1. Plot the forecasts
 plot_df <- df %>% 
   as_tibble() %>% 
@@ -107,6 +127,8 @@ T <- dim(df)[1]
 
 # VAR3
 mat3 <- sysmat(By=VAR3$var$var$By)
+convert_to_latex_matrix(mat3, dim = 9, digits = 7)
+
 mat3_eigen <- eigen(mat3)
 mat3_eigen$values[abs(mat3_eigen$values - 1) < 1/T]
 
