@@ -15,9 +15,9 @@ library(VARpack2019)
 library(dplyr)
 library(ggplot2)
 library(ggfortify)
-library(patchwork)
+# library(patchwork)
 library(tidyr)
-
+library(stargazer)
 theme_set(theme_bw())
 
 load("pdat.RData")
@@ -46,14 +46,13 @@ VAR_and_forecast <- function(lags, df){
   
   # Estimate the VAR
   var <- mgnldnsty(ydata = df, 
-                    lags = 3,
+                    lags = lags,
                     xdata = NULL,
                     const = TRUE, 
-                    vprior = list(sig = 1, w = 0)
-                    )
+                    vprior = list(sig = 1, w = 0))
 
   # Format initial condition
-  y0 <- df[(1:lags), ]
+  y0 <- tail(df, lags)
   
   # Return a forecast object also
   f <- fcast(y0 = y0,         # values of time series to forecast from
@@ -63,19 +62,41 @@ VAR_and_forecast <- function(lags, df){
              horiz = 100,     # forecast horizon
              const = TRUE, 
              shocks = NULL)
-  return(list(f = f, var))
+  
+  # Return a formatted data-frame for plotting 
+  fdf <- f %>% 
+    data.frame() %>%  
+    mutate(n = row_number(), lags = paste(lags)) %>% 
+    pivot_longer(cols = c("raw", "intermediate", "final")) 
+  
+  return(list(f = f, var=var, fdf = fdf))
 }
-VAR_and_forecast(10, df)
 
 VAR3 <- VAR_and_forecast(3, df)
+VAR9 <- VAR_and_forecast(9, df)
 
-f %>% 
-  data.frame() %>%  
-  mutate(n = row_number()) %>% 
+# 2.1. Plot the forecasts
+plot_df <- df %>% 
+  as_tibble() %>% 
+  mutate(n = row_number()-dim(df)[1], lags = "historic") %>% 
   pivot_longer(cols = c("raw", "intermediate",    "final")) %>% 
-  ggplot() + 
-  geom_line(aes(x = n, y = value, color = name))
+  bind_rows(VAR9$fdf) %>% 
+  bind_rows(VAR3$fdf)
 
-plot(f)
-fcast(var3$var)
+plot_df %>% filter(n>-100) %>% 
+  ggplot() + 
+  geom_line(aes(x = n, y = value, color =lags)) + 
+  facet_wrap(~name, scales = "fixed")
+ggsave(paste0(out, "2_var_forecast_plots.png"), height = 5, width = 8)  
+
+# 2.2. Compare the log odds ratio:
+data.frame(VAR = c(3, 9, "Odds Ratio"), 
+           Value = c(VAR3$var$w , VAR9$var$w, VAR3$var$w / VAR9$var$w)) %>% 
+  stargazer( summary = FALSE)
+
+
+####################################################################
+# 3. Estimate a VAR
+####################################################################
+
 
