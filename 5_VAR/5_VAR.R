@@ -20,6 +20,8 @@ library(ggfortify)
 library(stargazer)
 theme_set(theme_bw())
 
+
+source("vecmlh.R")
 load("pdat.RData")
 df <- pdat
 
@@ -38,6 +40,8 @@ ggsave(p2, file = paste0(out, "1_ts.png"), height = 5, width = 7)
 ####################################################################
 # Estimate a 3 lag VAR
 ?mgnldnsty
+# Note, had to give a vprior argument to get this to work. Not sure if
+# what I have done here is correct. need to discuss
 
 VAR_and_forecast <- function(lags, df){
   
@@ -120,5 +124,21 @@ plotir(resp3, file = paste0(out, "4_VAR3_IRF.pdf"), main = "IR Plot VAR 3")
 
 resp9 <- impulsdtrf(VAR9$var$var, nstep = 48)
 plotir(resp9, file = paste0(out, "4_VAR9_IRF.pdf"), main = "IR Plot VAR 9")
+
+
+####################################################################
+# 5. VECM
+####################################################################
+VECM <- vecmlh(
+  beta = VAR3$var$var$By, 
+  y = df, 
+  lags = 3,
+  ncoint = 1, verbose = TRUE)
+
+####################################################################
+# 6. State space
+####################################################################
+
+
 
 
