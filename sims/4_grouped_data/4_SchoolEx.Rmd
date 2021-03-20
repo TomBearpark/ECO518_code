@@ -256,7 +256,7 @@ summary(lm4)
 Compare model 2 to this weighted version...
 
 ```{r}
-png(file = paste0(out, "4_coef_plot_weighted_vs_2.png")w, height = 1000, width = 1200, res=200)
+png(file = paste0(out, "4_coef_plot_weighted_vs_2.png"), height = 1000, width = 1200, res=200)
 print(plot_summs(lm2, lm4, scale = TRUE, model.names = c("Unweighted", "Weighted")))
 dev.off()
 

@@ -15,7 +15,7 @@ plot(x, l(x))
 metrop <- function(n, eps, l, intial = 0) {
   vec <- vector("numeric", n)
   x <- intial
-  vec[0] <- x
+  vec[1] <- x
   for (i in 2:n) {
     innovation   <- rnorm(1, 0, eps)
     candidate    <- x + innovation

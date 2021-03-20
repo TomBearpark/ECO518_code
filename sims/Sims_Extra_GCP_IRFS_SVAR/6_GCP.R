@@ -25,9 +25,9 @@ determinant(mat2)
 # Check stationarity
 eigen(mat)
 mat1 %*% mat1
+t(mat1) %*% mat1
 
 # Print coefficients in latex
-mat1
 mat1_tilde %*% mat1_tilde  %>% 
   xtable(align = rep("", 5), digits = 3) %>% 
   print(tabular.environment="bmatrix", digits = 3,
