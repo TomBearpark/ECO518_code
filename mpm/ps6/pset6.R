@@ -3,6 +3,8 @@
 ###########################################################
 library(tidyverse)
 library(readxl)
+library(sandwich)
+
 theme_set(theme_bw())
 
 dir <- paste0("/Users/tombearpark/Documents/princeton/1st_year/term2/", 
@@ -80,5 +82,31 @@ ggplot() +
   geom_density(data = draws_cluster, aes(x = value), color = "green")
 
 
+
+###########################################################
+# Question 3
+num <- 1000
+
+alpha_0 <- 1
+beta_0 <- 0
+sigma_X_0 <- function(X) 1
+
+
+MC_draw <- function(i, alpha_0, beta_0, sigma_X_0){
+  # simulate the data
+  X <- rnorm(50, mean = 0, sd = 2)
+  epsilon <- rt(50, df = 5)
+  df <- tibble(
+      X = X, 
+      u = sigma_X_0(X) * epsilon) %>% 
+    mutate(Y = alpha_0 + beta_0 * X + u)
+  
+  # Calculate t-stat
+  fit <- lm(data = df, Y ~ X)
+  t <- coef(fit)["X"] / sqrt(vcovHC(fit, type="HC0")[2,2]) 
+  t <- abs(t)
+  tibble(draw = i, t = t)
+}
+MC_draw(i = 1, alpha_0, beta_0, sigma_X_0)
 
 
