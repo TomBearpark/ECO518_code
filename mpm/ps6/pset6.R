@@ -63,9 +63,9 @@ sd(draws_resid$value)
 cluster_boot <- function(df, i, formula){
   
   draw <- df %>% 
-    group_by(state_fe) %>% 
+    group_nest(state_fe) %>% 
       slice_sample(prop = 1, replace = TRUE) %>% 
-    ungroup()
+    unnest(c(data))
   
   reg  <- lm(data = draw, formula = as.formula(formula))
   data.frame(i = i, value = coef(reg)["shall"])
@@ -74,6 +74,11 @@ cluster_boot <- function(df, i, formula){
 draws_cluster <- map_dfr(seq(1:B), cluster_boot, 
                        df = df, formula = reg1)
 sd(draws_cluster$value)
+ggplot() + 
+  geom_density(data = draws_cluster, aes(x = value)) + 
+  ggtitle(paste0("1000 Clustered Bootstrap Draws, Mean is: ", 
+                 round(mean(draws_cluster$value), 5)))
+
 
 # very similar - homo-skedasticity might be a good assumption 
 ggplot() + 
