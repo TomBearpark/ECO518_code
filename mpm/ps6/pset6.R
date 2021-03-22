@@ -47,7 +47,7 @@ npm_boot <- function(df, i, formula){
 draws_npm <- map_dfr(seq(1:B), npm_boot, df = df, formula = reg1)
 
 # Find the sd:
-sd(draws_npm$value)
+sd_npm <- sd(draws_npm$value)
 
 # Try the residual bootstrap... 
 resid_boot <- function(df, i , formula, lm){
@@ -57,7 +57,7 @@ resid_boot <- function(df, i , formula, lm){
 }
 draws_resid <- map_dfr(seq(1:B), resid_boot, 
                        df = df, formula = reg1, lm = lm1)
-sd(draws_resid$value)
+sd_resid <- sd(draws_resid$value)
 
 # Cluster bootstrap...
 cluster_boot <- function(df, i, formula){
@@ -73,19 +73,34 @@ cluster_boot <- function(df, i, formula){
 
 draws_cluster <- map_dfr(seq(1:B), cluster_boot, 
                        df = df, formula = reg1)
-sd(draws_cluster$value)
+sd_cluster <- sd(draws_cluster$value)
+
+draws_npm %>% 
+  mutate(Bootstrap = paste0("Non-Parametric, sd = ", round(sd_npm, 4))) %>% 
+  bind_rows(
+    draws_resid %>% 
+      mutate(Bootstrap = paste0("Residual, sd = ", round(sd_resid, 4))) 
+  ) %>% 
+  bind_rows(
+    draws_cluster %>% 
+      mutate(Bootstrap = paste0("Clustered, sd = ", round(sd_cluster, 4)))
+  ) %>% 
+  ggplot() + 
+    geom_density(aes(x = value, color = Bootstrap)) + 
+    ggtitle(paste0("1000 Bootstrap Draws"))
+  
 ggplot() + 
   geom_density(data = draws_cluster, aes(x = value)) + 
   ggtitle(paste0("1000 Clustered Bootstrap Draws, Mean is: ", 
-                 round(mean(draws_cluster$value), 5)))
-
-
+                 round(mean(draws_cluster$value), 5))) + 
+  geom_vline(xintercept = mean(draws_cluster$value) + 1.96 * sd(draws_cluster$value)) + 
+  geom_vline(xintercept = mean(draws_cluster$value) - 1.96 * sd(draws_cluster$value)) 
+  
 # very similar - homo-skedasticity might be a good assumption 
 ggplot() + 
   geom_density(data = draws_npm, aes(x = value), color = "blue") + 
   geom_density(data = draws_resid, aes(x = value), color = "red") + 
   geom_density(data = draws_cluster, aes(x = value), color = "green")
-
 
 
 ###########################################################
