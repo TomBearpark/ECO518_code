@@ -126,7 +126,7 @@ sd_wild_cluster <- sd(draws_wild_cluster$value)
 # 1.2 Plot the bootstrap outputs 
 
 # Bind all the data together
-draws_npm %>% 
+plot_df <- draws_npm %>% 
   mutate(Bootstrap = paste0("Non-Parametric, sd = ", round(sd_npm, 4))) %>% 
   bind_rows(
     draws_resid %>% 
@@ -143,29 +143,21 @@ draws_npm %>%
   bind_rows(
     draws_wild_cluster %>% 
       mutate(Bootstrap = paste0("Wild Cluster, sd = ", round(sd_wild_cluster, 4)))
-  ) %>%
-  ggplot() + 
+  )
+
+plot_df %>% ggplot() + 
     geom_density(aes(x = value, color = Bootstrap)) + 
     ggtitle(paste0(B, " Bootstrap Draws"))
-  
-ggplot() + 
-  geom_density(data = draws_cluster, aes(x = value)) + 
-  ggtitle(paste0(B, " Clustered Bootstrap Draws, Mean is: ", 
-                 round(mean(draws_cluster$value), 5))) + 
-  geom_vline(xintercept = mean(draws_cluster$value) + 1.96 * sd(draws_cluster$value)) + 
-  geom_vline(xintercept = mean(draws_cluster$value) - 1.96 * sd(draws_cluster$value)) 
   
 # Compute times plot...
 if(require(microbenchmark)){
   times <- microbenchmark::microbenchmark(
-    resid_boot(df, 1, reg1, lm1), 
-    wild_boot(df, 1, reg1, lm1), 
-    npm_boot(df, 1, reg1), 
-    cluster_boot(df, 1, reg1), 
-    wild_cluster_boot(df, 1, reg1, lm1)
-  )
+    resid_boot(df, 1, reg1, lm1), wild_boot(df, 1, reg1, lm1), 
+    npm_boot(df, 1, reg1), cluster_boot(df, 1, reg1), 
+    wild_cluster_boot(df, 1, reg1, lm1))
   autoplot(times)
 }
+
 ###########################################################
 # 1.3 Construct CIs using the cluster bootstrap outputs
 
