@@ -1,6 +1,9 @@
 # Code for ECO518 MPM PSet 1 
 
 ###########################################################
+# 0 Set up, packages 
+###########################################################
+
 library(tidyverse) 
 library(readxl)
 library(sandwich)
@@ -14,7 +17,17 @@ set.seed(123)
 
 ###########################################################
 # Question 1
-B <- 5000
+###########################################################
+
+# Contents:
+# 1.0 Load in data, run the fixed effects regression
+# 1.1 Try bootstrapping in all the different ways 
+# 1.2 Plot the bootstrap outputs 
+# 1.3 Construct CIs using the cluster bootstrap outputs
+
+###########################################################
+# 1.0 Load in data, run the fixed effects regression
+B <- 1000
 
 df <- read_xlsx("Guns.xlsx") %>% 
   mutate(log_vio = log(vio), state_fe = factor(stateid))
@@ -39,10 +52,8 @@ ggplot() +
   geom_density(data = df, aes(x = resid, color = factor(shall))) + 
   facet_wrap(~state_fe)
 
-# seems pretty homoskedastic
-
 ##############################################3
-# Bootstrap the standard errors...
+# 1.1 Try bootstrapping in all the different ways 
 
 # Non-parametric bootstrap
 npm_boot <- function(df, i, formula){
@@ -51,8 +62,6 @@ npm_boot <- function(df, i, formula){
   data.frame(i = i, value = coef(reg)["shall"])
 }
 draws_npm <- map_dfr(seq(1:B), npm_boot, df = df, formula = reg1)
-
-# Find the sd:
 sd_npm <- sd(draws_npm$value)
 
 # Try the residual bootstrap... 
@@ -61,8 +70,7 @@ resid_boot <- function(df, i , formula, lm){
   reg        <- lm(data = df, as.formula(formula))
   data.frame(i = i, value = coef(reg)["shall"])
 }
-draws_resid <- map_dfr(seq(1:B), resid_boot, 
-                       df = df, formula = reg1, lm = lm1)
+draws_resid <- map_dfr(seq(1:B), resid_boot, df = df, formula = reg1, lm = lm1)
 sd_resid <- sd(draws_resid$value)
 
 # Cluster bootstrap...
@@ -79,8 +87,7 @@ cluster_boot <- function(df, i, formula){
   data.frame(i = i, value = coef(reg)["shall"], se = se)
 }
 
-draws_cluster <- map_dfr(seq(1:B), cluster_boot, 
-                       df = df, formula = reg1)
+draws_cluster <- map_dfr(seq(1:B), cluster_boot, df = df, formula = reg1)
 sd_cluster <- sd(draws_cluster$value)
 
 # Wild bootstrap
@@ -93,10 +100,8 @@ wild_boot <- function(df, i, formula, lm){
   
 }
 
-draws_wild <- map_dfr(seq(1:B), wild_boot, 
-                       df = df, formula = reg1, lm = lm1)
+draws_wild <- map_dfr(seq(1:B), wild_boot, df = df, formula = reg1, lm = lm1)
 sd_wild <- sd(draws_wild$value)
-
 
 # Wild Cluster bootstrap
 wild_cluster_boot <- function(df, i, formula, lm){
@@ -114,11 +119,13 @@ wild_cluster_boot <- function(df, i, formula, lm){
 }
 
 draws_wild_cluster <- map_dfr(seq(1:B), wild_cluster_boot, 
-                        df = df, formula = reg1, lm = lm1)
+                              df = df, formula = reg1, lm = lm1)
 sd_wild_cluster <- sd(draws_wild_cluster$value)
 
-# Some plots... 
+###########################################################
+# 1.2 Plot the bootstrap outputs 
 
+# Bind all the data together
 draws_npm %>% 
   mutate(Bootstrap = paste0("Non-Parametric, sd = ", round(sd_npm, 4))) %>% 
   bind_rows(
@@ -148,7 +155,7 @@ ggplot() +
   geom_vline(xintercept = mean(draws_cluster$value) + 1.96 * sd(draws_cluster$value)) + 
   geom_vline(xintercept = mean(draws_cluster$value) - 1.96 * sd(draws_cluster$value)) 
   
-# Optional compute time plot...
+# Compute times plot...
 if(require(microbenchmark)){
   times <- microbenchmark::microbenchmark(
     resid_boot(df, 1, reg1, lm1), 
@@ -159,11 +166,10 @@ if(require(microbenchmark)){
   )
   autoplot(times)
 }
+###########################################################
+# 1.3 Construct CIs using the cluster bootstrap outputs
 
-sd(x)
-
-
-# Get the CIs - Effron
+# 1.3.1 Effron CI
 betas <- draws_cluster$value
 coverage <- .95
 sigma_hat <- sd(betas)
@@ -173,14 +179,11 @@ qLow <- quantile(betas, probs = c((1-coverage)/2)) %>% as.numeric()
 qHigh <- quantile(betas, probs = c(1-(1-coverage)/2)) %>% as.numeric()
 
 effron_ci <- c(qLow, qHigh)
-
-
-# Get the CIs, Percentile-t 
+# 1.3.1 Percentile-T CI
 beta_hat <- coef(lm1)["shall"]
 
 draws_cluster <- draws_cluster %>% 
   mutate(T = sqrt(N) * (value - beta_hat) / se)
-
 Ts <- draws_cluster$T
 
 qLowTilde <- quantile(Ts, probs = c((1-coverage)/2)) %>% as.numeric()
@@ -195,7 +198,6 @@ ggplot() +
   geom_vline(xintercept = effron_ci, color = "red") + 
   geom_vline(xintercept = percentile_ci, color= "blue") + 
   geom_vline(xintercept = mu, color  = "green")
-
 
 ###########################################################
 # Question 3
@@ -217,10 +219,13 @@ MC_draw <- function(i, alpha_0, beta_0, sigma_X_0){
   
   # Calculate t-stat
   fit <- lm(data = df, Y ~ X)
-  t <- coef(fit)["X"] / sqrt(vcovHC(fit, type="HC0")[2,2]) 
-  t <- abs(t)
+  t   <- coef(fit)["X"] / sqrt(vcovHC(fit, type="HC0")[2,2]) 
+  t   <- abs(t)
   tibble(draw = i, t = t)
 }
+# Asymtotically normal critical value:
+
+
 MC_draw(i = 1, alpha_0, beta_0, sigma_X_0)
 
 
