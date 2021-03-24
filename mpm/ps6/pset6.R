@@ -7,6 +7,7 @@
 library(tidyverse) 
 library(readxl)
 library(sandwich)
+library(stargazer)
 theme_set(theme_bw())
 
 dir <- paste0("/Users/tombearpark/Documents/princeton/1st_year/term2/", 
@@ -37,20 +38,21 @@ reg1 <- paste0("log_vio ~ shall + incarc_rate + density + avginc + pop ",
                "+ pb1064 + pw1064 + pm1029 + state_fe")
 lm1 <- lm(data = df, formula = as.formula(reg1))
 df$resid <- lm1$residuals
-summary(lm1)
+summary(lm1, cluster = c("state_fe"))
+
+ses <- sqrt(diag(vcovCL(lm1, cluster = ~ state_fe)))
+stargazer(lm1, keep = "shall", se = list(ses))
 
 # Initial plots... 
-plot(lm1)
-ggplot(data = df, aes(y = resid, x = shall)) + 
-  geom_point(col = 'blue') + 
-  geom_abline(slope = 0)
-
 ggplot() + 
   geom_density(data = df, aes(x = resid, color = factor(shall))) 
+ggsave(paste0(out, "1_homosked.png"), height = 3, width = 5)
 
-ggplot() + 
-  geom_density(data = df, aes(x = resid, color = factor(shall))) + 
-  facet_wrap(~state_fe)
+df %>%  
+  filter(stateid == 1) %>% 
+  ggplot(aes(x = year, y = resid)) + 
+  geom_point()
+ggsave(paste0(out, "1_state_1_time_resid.png"), height = 3, width = 5)
 
 ##############################################3
 # 1.1 Try bootstrapping in all the different ways 
@@ -59,7 +61,7 @@ ggplot() +
 npm_boot <- function(df, i, formula){
   draw <- slice_sample(df, prop = 1, replace = TRUE)
   reg  <- lm(data = draw, formula = as.formula(formula))
-  data.frame(i = i, value = coef(reg)["shall"])
+  tibble(i = i, value = coef(reg)["shall"])
 }
 draws_npm <- map_dfr(seq(1:B), npm_boot, df = df, formula = reg1)
 sd_npm <- sd(draws_npm$value)
@@ -68,7 +70,7 @@ sd_npm <- sd(draws_npm$value)
 resid_boot <- function(df, i , formula, lm){
   df$log_vio <- predict(lm) + sample(lm$residuals)
   reg        <- lm(data = df, as.formula(formula))
-  data.frame(i = i, value = coef(reg)["shall"])
+  tibble(i = i, value = coef(reg)["shall"])
 }
 draws_resid <- map_dfr(seq(1:B), resid_boot, df = df, formula = reg1, lm = lm1)
 sd_resid <- sd(draws_resid$value)
@@ -84,7 +86,7 @@ cluster_boot <- function(df, i, formula){
   reg  <- lm(data = draw, formula = as.formula(formula))
   se   <- vcovCL(reg, cluster = ~ state_fe)["shall", "shall"] %>% sqrt()
   
-  data.frame(i = i, value = coef(reg)["shall"], se = se)
+  tibble(i = i, value = coef(reg)["shall"], se = se)
 }
 
 draws_cluster <- map_dfr(seq(1:B), cluster_boot, df = df, formula = reg1)
@@ -96,7 +98,7 @@ wild_boot <- function(df, i, formula, lm){
   df$omega   <- sample(c(-1,1), nrow(df) ,replace=T)
   df$log_vio <- predict(lm) + df$omega * lm$residuals
   reg        <- lm(data = df, as.formula(formula))
-  data.frame(i = i, value = coef(reg)["shall"])
+  tibble(i = i, value = coef(reg)["shall"])
   
 }
 
@@ -115,7 +117,7 @@ wild_cluster_boot <- function(df, i, formula, lm){
   
   draw$log_vio <- predict(lm) + draw$omega * lm$residuals
   reg          <- lm(data = draw, as.formula(formula))
-  data.frame(i = i, value = coef(reg)["shall"])
+  tibble(i = i, value = coef(reg)["shall"])
 }
 
 draws_wild_cluster <- map_dfr(seq(1:B), wild_cluster_boot, 
@@ -148,7 +150,14 @@ plot_df <- draws_npm %>%
 plot_df %>% ggplot() + 
     geom_density(aes(x = value, color = Bootstrap)) + 
     ggtitle(paste0(B, " Bootstrap Draws"))
-  
+
+ggsave(paste0(out, "1_bs_comparisons.png"), height= 5, width = 9)
+
+# Check out se density from clustered BS
+draws_cluster %>% 
+  ggplot() + 
+  geom_density(aes(x = se))
+
 # Compute times plot...
 if(require(microbenchmark)){
   times <- microbenchmark::microbenchmark(
@@ -162,15 +171,12 @@ if(require(microbenchmark)){
 # 1.3 Construct CIs using the cluster bootstrap outputs
 
 # 1.3.1 Effron CI
-betas <- draws_cluster$value
-coverage <- .95
+betas     <- draws_cluster$value
 sigma_hat <- sd(betas)
-N <- nrow(df)
+N         <- nrow(df)
 
-qLow <- quantile(betas, probs = c((1-coverage)/2)) %>% as.numeric()
-qHigh <- quantile(betas, probs = c(1-(1-coverage)/2)) %>% as.numeric()
+effron_ci  <- quantile(betas, probs = c(0.025, 0.975)) %>% as.numeric()
 
-effron_ci <- c(qLow, qHigh)
 # 1.3.1 Percentile-T CI
 beta_hat <- coef(lm1)["shall"]
 
@@ -178,18 +184,18 @@ draws_cluster <- draws_cluster %>%
   mutate(T = sqrt(N) * (value - beta_hat) / se)
 Ts <- draws_cluster$T
 
-qLowTilde <- quantile(Ts, probs = c((1-coverage)/2)) %>% as.numeric()
-qHighTilde <- quantile(Ts, probs = c(1-(1-coverage)/2)) %>% as.numeric()
+qLowTilde  <- quantile(Ts, probs = c(0.025)) %>% as.numeric()
+qHighTilde <- quantile(Ts, probs = c(0.975)) %>% as.numeric()
 
 percentile_ci <- c(beta_hat - sigma_hat * qHighTilde / sqrt(N), 
-                   mu - sigma_hat * qLowTilde / sqrt(N))
+                   beta_hat - sigma_hat * qLowTilde / sqrt(N))
 
 # Plot the density function, and the CIs 
 ggplot() + 
   geom_density(data = draws_cluster, aes(x = value)) + 
   geom_vline(xintercept = effron_ci, color = "red") + 
   geom_vline(xintercept = percentile_ci, color= "blue") + 
-  geom_vline(xintercept = mu, color  = "green")
+  geom_vline(xintercept = beta_hat, color  = "green")
 
 ###########################################################
 # Question 3
