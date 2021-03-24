@@ -42,6 +42,10 @@ summary(lm1, cluster = c("state_fe"))
 
 ses <- sqrt(diag(vcovCL(lm1, cluster = ~ state_fe)))
 stargazer(lm1, keep = "shall", se = list(ses))
+beta_hat <- coef(lm1)["shall"]
+
+coeftest(lm1, vcovCL(lm1, type = "HC1", cluster = ~state_fe))['shall', 'Std. Error']
+sqrt(vcovCL(lm1, cluster = ~ state_fe, type  = "HC1")["shall", "shall"])
 
 # Initial plots... 
 ggplot() + 
@@ -76,20 +80,24 @@ draws_resid <- map_dfr(seq(1:B), resid_boot, df = df, formula = reg1, lm = lm1)
 sd_resid <- sd(draws_resid$value)
 
 # Cluster bootstrap...
-cluster_boot <- function(df, i, formula){
+cluster_boot <- function(df, i, beta_hat, formula){
   
   draw <- df %>% 
     group_nest(state_fe) %>% 
-      slice_sample(prop = 1, replace = TRUE) %>% 
-    unnest(c(data))
+    slice_sample(prop = 1, replace = TRUE) %>% 
+    unnest(cols = c(data))
   
-  reg  <- lm(data = draw, formula = as.formula(formula))
-  se   <- vcovCL(reg, cluster = ~ state_fe)["shall", "shall"] %>% sqrt()
-  
-  tibble(i = i, value = coef(reg)["shall"], se = se)
+  fit <- lm(formula, data = draw)
+  beta <- coef(fit)["shall"]
+  se <- sqrt(vcovCL(fit, cluster = ~ state_fe, type  = "HC1")["shall", "shall"])
+  T <- sqrt(nrow(draw)) * (beta - beta_hat) / se
+  tibble(i = i, beta = beta, se = se, T = T)
 }
 
-draws_cluster <- map_dfr(seq(1:B), cluster_boot, df = df, formula = reg1)
+
+draws_cluster <-  map_dfr(1:1000, cluster_boot, df = df, 
+                          beta_hat = beta_hat, formula = reg1)
+
 sd_cluster <- sd(draws_cluster$value)
 
 # Wild bootstrap
@@ -135,7 +143,7 @@ plot_df <- draws_npm %>%
       mutate(Bootstrap = paste0("Residual, sd = ", round(sd_resid, 4))) 
   ) %>% 
   bind_rows(
-    draws_cluster %>% 
+    draws_cluster %>% select(i, value = beta) %>% 
       mutate(Bootstrap = paste0("Clustered, sd = ", round(sd_cluster, 4)))
   ) %>% 
   bind_rows(
@@ -153,46 +161,23 @@ plot_df %>% ggplot() +
 
 ggsave(paste0(out, "1_bs_comparisons.png"), height= 5, width = 9)
 
-# Check out se density from clustered BS
-draws_cluster %>% 
-  ggplot() + 
-  geom_density(aes(x = se))
-
-# Compute times plot...
-if(require(microbenchmark)){
-  times <- microbenchmark::microbenchmark(
-    resid_boot(df, 1, reg1, lm1), wild_boot(df, 1, reg1, lm1), 
-    npm_boot(df, 1, reg1), cluster_boot(df, 1, reg1), 
-    wild_cluster_boot(df, 1, reg1, lm1))
-  autoplot(times)
-}
-
 ###########################################################
 # 1.3 Construct CIs using the cluster bootstrap outputs
 
 # 1.3.1 Effron CI
-betas     <- draws_cluster$value
-sigma_hat <- sd(betas)
-N         <- nrow(df)
-
-effron_ci  <- quantile(betas, probs = c(0.025, 0.975)) %>% as.numeric()
+# Effron... 
+p_vals <- c(0.025, 0.975)
+effron_ci <- quantile(draws_cluster$beta, p_vals)
+effron_ci
 
 # 1.3.1 Percentile-T CI
-beta_hat <- coef(lm1)["shall"]
-
-draws_cluster <- draws_cluster %>% 
-  mutate(T = sqrt(N) * (value - beta_hat) / se)
-Ts <- draws_cluster$T
-
-qLowTilde  <- quantile(Ts, probs = c(0.025)) %>% as.numeric()
-qHighTilde <- quantile(Ts, probs = c(0.975)) %>% as.numeric()
-
-percentile_ci <- c(beta_hat - sigma_hat * qHighTilde / sqrt(N), 
-                   beta_hat - sigma_hat * qLowTilde / sqrt(N))
+percentile_ci <- 
+  beta_hat - quantile(draws_cluster$T, p_vals)[c(2,1)] * beta_sd_hat / sqrt(N)
+percentile_ci
 
 # Plot the density function, and the CIs 
 ggplot() + 
-  geom_density(data = draws_cluster, aes(x = value)) + 
+  geom_density(data = draws_cluster, aes(x = beta)) + 
   geom_vline(xintercept = effron_ci, color = "red") + 
   geom_vline(xintercept = percentile_ci, color= "blue") + 
   geom_vline(xintercept = beta_hat, color  = "green")
