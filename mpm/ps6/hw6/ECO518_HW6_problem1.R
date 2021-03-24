@@ -4,7 +4,14 @@ library(sandwich)
 library(lmtest)
 
 rm(list = ls(all.names = TRUE))
-setwd('/Users/ericqian/Princeton/Courses/ECO 518/homework/hw6')
+user  = "tom"
+
+if(user == "tom") {
+  setwd("/Users/tombearpark/Documents/princeton/1st_year/term2/ECO518_Metrics2/ECO518_code/mpm/ps6/hw6/")
+}else { 
+  setwd('/Users/ericqian/Princeton/Courses/ECO 518/homework/hw6')
+}
+
 source('routines.R')
 
 # Settings
