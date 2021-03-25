@@ -3,7 +3,7 @@
 ###########################################################
 # 0 Set up, packages 
 ###########################################################
-
+rm(list = ls())
 library(tidyverse) 
 library(readxl)
 library(sandwich)
@@ -14,7 +14,7 @@ dir <- paste0("/Users/tombearpark/Documents/princeton/1st_year/term2/",
               "ECO518_Metrics2/mpm/excercises/ps6/")
 out <- paste0(dir, "out/")
 setwd(dir)
-set.seed(123)
+set.seed(1)
 
 ###########################################################
 # Question 1
@@ -32,19 +32,18 @@ B <- 1000
 
 df <- read_xlsx("Guns.xlsx") %>% 
   mutate(log_vio = log(vio), state_fe = factor(stateid))
+N <- nrow(df)
 
 # linear FE regression..
 reg1 <- paste0("log_vio ~ shall + incarc_rate + density + avginc + pop ", 
                "+ pb1064 + pw1064 + pm1029 + state_fe")
 lm1 <- lm(data = df, formula = as.formula(reg1))
 df$resid <- lm1$residuals
-summary(lm1, cluster = c("state_fe"))
 
 ses <- sqrt(diag(vcovCL(lm1, cluster = ~ state_fe)))
 stargazer(lm1, keep = "shall", se = list(ses))
 beta_hat <- coef(lm1)["shall"]
-
-coeftest(lm1, vcovCL(lm1, type = "HC1", cluster = ~state_fe))['shall', 'Std. Error']
+# Check out the SEs..
 sqrt(vcovCL(lm1, cluster = ~ state_fe, type  = "HC1")["shall", "shall"])
 
 # Initial plots... 
@@ -52,8 +51,7 @@ ggplot() +
   geom_density(data = df, aes(x = resid, color = factor(shall))) 
 ggsave(paste0(out, "1_homosked.png"), height = 3, width = 5)
 
-df %>%  
-  filter(stateid == 1) %>% 
+filter(df, stateid == 1) %>% 
   ggplot(aes(x = year, y = resid)) + 
   geom_point()
 ggsave(paste0(out, "1_state_1_time_resid.png"), height = 3, width = 5)
@@ -84,21 +82,18 @@ cluster_boot <- function(df, i, beta_hat, formula){
   
   draw <- df %>% 
     group_nest(state_fe) %>% 
-    slice_sample(prop = 1, replace = TRUE) %>% 
+      slice_sample(prop = 1, replace = TRUE) %>% 
     unnest(cols = c(data))
   
-  fit <- lm(formula, data = draw)
+  fit  <- lm(formula, data = draw)
   beta <- coef(fit)["shall"]
-  se <- sqrt(vcovCL(fit, cluster = ~ state_fe, type  = "HC1")["shall", "shall"])
-  T <- sqrt(nrow(draw)) * (beta - beta_hat) / se
+  se   <- sqrt(vcovCL(fit, cluster = draw$state_fe, type  = "HC1")["shall", "shall"])
+  T    <- sqrt(nrow(draw)) * (beta - beta_hat) / se
   tibble(i = i, beta = beta, se = se, T = T)
 }
-
-
 draws_cluster <-  map_dfr(1:1000, cluster_boot, df = df, 
                           beta_hat = beta_hat, formula = reg1)
-
-sd_cluster <- sd(draws_cluster$value)
+sd_cluster <- sd(draws_cluster$beta)
 
 # Wild bootstrap
 wild_boot <- function(df, i, formula, lm){
@@ -158,7 +153,6 @@ plot_df <- draws_npm %>%
 plot_df %>% ggplot() + 
     geom_density(aes(x = value, color = Bootstrap)) + 
     ggtitle(paste0(B, " Bootstrap Draws"))
-
 ggsave(paste0(out, "1_bs_comparisons.png"), height= 5, width = 9)
 
 ###########################################################
@@ -172,7 +166,7 @@ effron_ci
 
 # 1.3.1 Percentile-T CI
 percentile_ci <- 
-  beta_hat - quantile(draws_cluster$T, p_vals)[c(2,1)] * beta_sd_hat / sqrt(N)
+  beta_hat - quantile(draws_cluster$T, p_vals)[c(2,1)] * sd_cluster / sqrt(N)
 percentile_ci
 
 # Plot the density function, and the CIs 
@@ -180,35 +174,8 @@ ggplot() +
   geom_density(data = draws_cluster, aes(x = beta)) + 
   geom_vline(xintercept = effron_ci, color = "red") + 
   geom_vline(xintercept = percentile_ci, color= "blue") + 
-  geom_vline(xintercept = beta_hat, color  = "green")
-
-###########################################################
-# Question 3
-num <- 1000
-
-alpha_0 <- 1
-beta_0 <- 0
-sigma_X_0 <- function(X) 1
-
-
-MC_draw <- function(i, alpha_0, beta_0, sigma_X_0){
-  # simulate the data
-  X <- rnorm(50, mean = 0, sd = 2)
-  epsilon <- rt(50, df = 5)
-  df <- tibble(
-      X = X, 
-      u = sigma_X_0(X) * epsilon) %>% 
-    mutate(Y = alpha_0 + beta_0 * X + u)
+  geom_vline(xintercept = beta_hat, color  = "green") + 
   
-  # Calculate t-stat
-  fit <- lm(data = df, Y ~ X)
-  t   <- coef(fit)["X"] / sqrt(vcovHC(fit, type="HC0")[2,2]) 
-  t   <- abs(t)
-  tibble(draw = i, t = t)
-}
-# Asymtotically normal critical value:
-
-
-MC_draw(i = 1, alpha_0, beta_0, sigma_X_0)
+ggsave(paste0(out, "1_CIs.png"), height = 5, width = 7)
 
 
