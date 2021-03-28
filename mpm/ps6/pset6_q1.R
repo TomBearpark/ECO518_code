@@ -87,7 +87,8 @@ cluster_boot <- function(df, i, beta_hat, formula){
   
   fit  <- lm(formula, data = draw)
   beta <- coef(fit)["shall"]
-  se   <- sqrt(vcovCL(fit, cluster = draw$state_fe, type  = "HC1")["shall", "shall"])
+  se   <- 
+    sqrt(vcovCL(fit, cluster = draw$state_fe, type  = "HC1")["shall", "shall"])
   T    <- sqrt(nrow(draw)) * (beta - beta_hat) / se
   tibble(i = i, beta = beta, se = se, T = T)
 }
@@ -131,7 +132,7 @@ sd_wild_cluster <- sd(draws_wild_cluster$value)
 # 1.2 Plot the bootstrap outputs 
 
 # Bind all the data together
-plot_df <- draws_npm %>% 
+plot_df_relevant <- draws_npm %>% 
   mutate(Bootstrap = paste0("Non-Parametric, sd = ", round(sd_npm, 4))) %>% 
   bind_rows(
     draws_resid %>% 
@@ -140,19 +141,34 @@ plot_df <- draws_npm %>%
   bind_rows(
     draws_cluster %>% select(i, value = beta) %>% 
       mutate(Bootstrap = paste0("Clustered, sd = ", round(sd_cluster, 4)))
-  ) %>% 
+  ) 
+
+plot_df_relevant %>% ggplot() + 
+  geom_density(aes(x = value, color = Bootstrap)) + 
+  ggtitle(paste0(B, " Bootstrap Draws")) +
+  ggsave(paste0(out, "1_bs_comparisons_relevant.png"), height= 5, width = 9)
+
+plot_df <- plot_df_relevant %>% 
   bind_rows(
     draws_wild %>% 
       mutate(Bootstrap = paste0("Wild, sd = ", round(sd_wild, 4)))
   ) %>% 
   bind_rows(
     draws_wild_cluster %>% 
-      mutate(Bootstrap = paste0("Wild Cluster, sd = ", round(sd_wild_cluster, 4)))
+      mutate(Bootstrap = paste0("Wild Cluster, sd = ", 
+                                round(sd_wild_cluster, 4)))
   )
 
+filter(plot_df, str_detect(Bootstrap, "Clustered")) %>% 
+  ggplot() +
+  geom_density(aes(x = value)) + 
+  ggtitle(paste0(B, " Clustered Bootstrap Draws for Coefficient on Shall")) + 
+ggsave(paste0(out, "1_bs_clustered.png"), height= 5, width = 6)
+
+
 plot_df %>% ggplot() + 
-    geom_density(aes(x = value, color = Bootstrap)) + 
-    ggtitle(paste0(B, " Bootstrap Draws"))
+  geom_density(aes(x = value, color = Bootstrap)) + 
+  ggtitle(paste0(B, " Bootstrap Draws")) +
 ggsave(paste0(out, "1_bs_comparisons.png"), height= 5, width = 9)
 
 ###########################################################
@@ -172,9 +188,9 @@ percentile_ci
 # Plot the density function, and the CIs 
 ggplot() + 
   geom_density(data = draws_cluster, aes(x = beta)) + 
-  geom_vline(xintercept = effron_ci, color = "red") + 
-  geom_vline(xintercept = percentile_ci, color= "blue") + 
-  geom_vline(xintercept = beta_hat, color  = "green") + 
+  geom_vline(xintercept = effron_ci,     color = "red") + 
+  geom_vline(xintercept = percentile_ci, color = "blue") + 
+  geom_vline(xintercept = beta_hat,      color = "green") 
   
 ggsave(paste0(out, "1_CIs.png"), height = 5, width = 7)
 

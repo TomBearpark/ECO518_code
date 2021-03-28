@@ -3,6 +3,7 @@
 library(tidyverse)
 library(sandwich)
 library(furrr) # parallel functional programming 
+library(xtable)
 
 ###########################################################
 # Functions 
@@ -106,7 +107,7 @@ res_i <- future_map_dfr(seq(1,1000), MC_draw,
                .options = future_options(seed = TRUE))
 
 sum_i <- summarise_all(res_i, mean) %>% 
-  mutate(part = "i") %>% select(-c(draw, t)) %>% data.frame()
+  mutate(part = "i") %>% select(-c(draw, t, t_tilde, part)) %>% t() %>% data.frame()
 
 # Part (ii)
 sigma_X_0_ii <- function(X) 0.5 * X
@@ -117,8 +118,11 @@ res_ii <- future_map_dfr(seq(1,1000), MC_draw,
                       .options = future_options(seed = TRUE))
 
 sum_ii <- summarise_all(res_ii, mean) %>% 
-  mutate(part = "ii") %>% select(-c(draw, t)) %>% data.frame()
+  mutate(part = "ii") %>% select(-c(draw, t, t_tilde, part)) %>% t() %>% data.frame()
 
-bind_rows(sum_i, sum_ii)
+output <- bind_cols(sum_i, sum_ii) 
+names(output)= c("i", "ii")
+output %>% 
+  xtable(digits = 3)
 
 
