@@ -129,7 +129,10 @@ ggplot(CV_results) +
   geom_line(aes(x = h, y= CV)) + 
   ggtitle(paste0("h* = ", CV_star))
 
-map_dfr(X, m, X = X, h = CV_star, Y = Y) %>% 
+range <- seq(min(X), max(X), length.out = 100)
+
+map_dfr(range, m, X = X, h = CV_star, Y = Y) %>% 
   ggplot() + 
   geom_line(aes(x = x, y = m)) + 
-  geom_point(data = df, aes(x = log_inc, y = share_food), alpha = 0.2) 
+  geom_point(data = df, aes(x = log_inc, y = share_food), alpha = 0.2) +
+  ylim(c(0,1)) + xlim(5.5, 9)
