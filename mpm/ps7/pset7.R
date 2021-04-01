@@ -1,14 +1,11 @@
 # code for MPM pset 7
 
 rm(list = ls())
+
 library(tidyverse) 
-library(readxl)
-library(sandwich)
-library(stargazer)
-library(patchwork)
+library(furrr)
+
 theme_set(theme_bw())
-
-
 dir <- paste0("/Users/tombearpark/Documents/princeton/1st_year/term2/", 
               "ECO518_Metrics2/mpm/excercises/ps7/")
 out <- paste0(dir, "out/")
@@ -25,7 +22,7 @@ df <- read_csv(paste0(dir, "engel.csv")) %>%
 
 ggplot(df) + 
   geom_point(aes(x = foodexp, y = log_inc))
-p0 <- ggplot(df) + 
+ggplot(df) + 
   geom_density(aes(x = log_inc))
 
 ###########################################################
@@ -82,46 +79,45 @@ ggplot(df) +
 # as a function of h (the bandwidth) on the interval (0,1] in 
 # 0.01 increments (e.g. h = 0.01, 0.02, . . . , 0.99, 1).
 
-hvals <- seq(0.01, 1, 0.01)
-
-Y <- df$share_food
-X <- df$log_inc
 
 # Returns weight for observation i at X0
-w_i <- function(Xi, X0, X, h){
-  K(Xi, X0, h) / sum(K(X, X0, h))
+w_i <- function(Xi, X0, X, h, type = "kernel"){
+  if(type == "kernel") K(Xi, X0, h) / sum(K(X, X0, h))
 }
 
 # Get predicted value at X0
-m <- function(X0, X, h, Y){
-  data.frame(x = X0, m = sum(Y * w_i(Xi = X, X0 = X0, X = X, h = h)))
+m <- function(X0, X, h, Y, type = "kernel"){
+  mhat <- 0
+  for(i in 1:length(X)){
+    mhat <- mhat + Y[i] * w_i(Xi = X[i], X0 = X0, X = X, h = h, type = type)
+  }
+  # mhat <- sum(Y * w_i(X = X, X0 = X0, h = h, type = type))
+  data.frame(x = X0, m = mhat)
 }
 
-# Plot to check it looks reasonable for a random h
-map_dfr(X, m, X = X, h = 0.1, Y = Y) %>% 
-  ggplot() + 
-  geom_line(aes(x = x, y = m)) + 
-  geom_point(data = df, aes(x = log_inc, y = share_food), alpha = 0.2) + 
-  ggtitle("Test, h = 0.1")
-
-
-CV <- function(h, X, Y){
+# Get cross validation MSE, as a function of h
+CV <- function(h, X, Y, type = "kernel"){
 
   N       <- length(X)
   d       <- data.frame(Y = Y, X = X) 
-  ms      <- map_dfr(X, m, X = X, h = h, Y = Y)
+  ms      <- map_dfr(X, m, X = X, h = h, Y = Y, type = type)
   d$resid <- Y - ms$m
   
   d$w <- 0
   for(i in 1:N){
-    d$w[i] <-   w_i(X[i], X0 = X[i], X = X, h = h)
+    d$w[i] <-   w_i(X[i], X0 = X[i], X = X, h = h, type = type)
   }
   (1 / N) * sum((d$resid / (1 - d$w))^2)
 }
 
-CV_results <- data.frame(h = hvals, CV = map_dbl(hvals, CV, X = X, Y = Y))
-CV_results <- filter(CV_results, !is.na(CV))
+Y <- df$share_food
+X <- df$log_inc
 
+hvals <- seq(0.01, 1, 0.01)
+
+CV_results <- data.frame(h = hvals, 
+                         CV = map_dbl(hvals, CV, X = X, Y = Y, type = "kernel"))
+CV_results <- filter(CV_results, !is.na(CV))
 CV_star <- CV_results$h[CV_results$CV == min(CV_results$CV, na.rm = T)]
 
 # Plot!
@@ -130,9 +126,78 @@ ggplot(CV_results) +
   ggtitle(paste0("h* = ", CV_star))
 
 range <- seq(min(X), max(X), length.out = 100)
-
 map_dfr(range, m, X = X, h = CV_star, Y = Y) %>% 
   ggplot() + 
   geom_line(aes(x = x, y = m)) + 
   geom_point(data = df, aes(x = log_inc, y = share_food), alpha = 0.2) +
   ylim(c(0,1)) + xlim(5.5, 9)
+
+
+# iii) Estimate the regression of share of food expenditures on log income 
+#   (i.e. the Engel curve) using Local Linear Regression with 
+#   a normal kernel in three steps:
+
+# (a) For Local Linear Regression, calculate and plot the cross-validation 
+# criterion as a function of h (the bandwidth) on the interval (1, 2] at
+# 0.01 increments (e.g. h = 1.01, 1.02, . . . , 1.99, 2).
+
+w_i <- function(Xi, X0, X, h, type){
+  
+  if(type == "kernel") {
+    
+    w_val <- K(Xi, X0, h) / sum(K(X, X0, h))
+    
+  }else if (type == "local_linear"){
+    
+    z  <- matrix(c(1, X0))
+    Zi <- matrix(c(1, Xi))
+    
+    mid <- matrix(c(0,0,0,0), nrow = 2)
+    
+    for(j in 1:length(X)){
+      Zj <- matrix(c(1, X[j]))
+      mid <- mid + K(X[j], X0, h) * Zj %*% t(Zj)
+    }
+    w_val <- (t(z) %*% solve(mid) %*% (K(Xi, X0, h) * Zi)) %>% as.numeric()
+  
+  }else stop("not implemented")
+  
+  return(w_val)
+}
+
+# (b) Approximate the optimal bandwidth hC V using a grid search over the 
+# interval (1, 2] in 0.01 increments.
+plan(multisession, workers = 8)
+
+CV_results_ll <- 
+  data.frame(h = hvals, 
+             CV = future_map_dbl(hvals, CV, X = X, Y = Y, type = "local_linear"))
+
+h_star_ll <- CV_results_ll$h[CV_results_ll$CV == min(CV_results_ll$CV, na.rm = T)]
+
+write_csv(CV_results_ll, paste0(out, "local_linear_CV.csv"))
+ggplot(CV_results_ll) + 
+  geom_line(aes(x = h, y = CV)) + 
+  ggsave(paste0(out, "/local_linear_CV.png"))
+
+# (c) Use the optimal bandwidth to estimate the Local Linear Regression of 
+# share of food expenditures on log income at each value of X, 
+# where X is the log income data. Plot the estimated regression curve 
+# and a scatterplot of the data in the same graph.
+
+map_dfr(range, m, X = X, h = h_star_ll, Y = Y, type = "local_linear") %>% 
+  ggplot() + 
+  geom_line(aes(x = x, y = m)) + 
+  ggtitle(paste0("Local Linear Regression, h = ", h_star_ll)) + 
+  geom_point(data = df, aes(x = log_inc, y = share_food), alpha = 0.2) +
+  ylim(c(0,1)) + xlim(5.5, 9) + 
+  ggsave(paste0(out, "/local_linear_w_scatter.png"))
+
+
+
+
+
+
+
+
+
