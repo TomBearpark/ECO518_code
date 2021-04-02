@@ -24,15 +24,17 @@ lm1 = fitlm(df, 'Y~X+R+R2');
 
 % E(Y|R), NW 
 %hGrid_Y_R = [.1:.1:.7, .75:.025:1.25, 1.3:.1:1.5];
-hGrid_Y_R = [.75:.025:1.25];
+hGrid_Y_R                  = .75:.025:1.25;
 [Y_RHat, CV_Y_R, hOpt_Y_R] = localpolyCV(df.R, df.Y, df.R, 0, hGrid_Y_R);
 
 
 % E(X|R), NW
-hGrid_X_R = [6:.025:.9];
+hGrid_X_R = .7:.01:.8;
 [X_RHat, CV_X_R, hOpt_X_R] = localpolyCV(df.R, df.X, df.R, 0, hGrid_X_R);
 
-beta0  = regress( df.Y - Y_RHat, df.X - X_RHat);  
+beta0  = regress( df.Y - Y_RHat, [df.X - X_RHat (df.X - X_RHat)*0+1]);  
+
+
 
 
 %% Non-parametric bootstrap

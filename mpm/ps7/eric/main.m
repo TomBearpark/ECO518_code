@@ -105,7 +105,7 @@ for jSpec = 1:nSpec
 end
 
 
-%% Plots 
+%% Plot CV for polynomial
 
 polyCV    = [Res(end-length(pVec)+1:end).CV];
 [~, jOpt] = min(polyCV);
@@ -118,9 +118,9 @@ ylabel('CV')
 box on
 grid on
 title(['p^*=' num2str(pVec(jOpt))])
-saveas(gcf, ['poly_CV.png'])
+saveas(gcf, [figDir 'poly_CV.png'])
 ylim([0,.01])
-saveas(gcf, ['poly_CV_tight.png'])
+saveas(gcf, [figDir 'poly_CV_tight.png'])
 
 
 

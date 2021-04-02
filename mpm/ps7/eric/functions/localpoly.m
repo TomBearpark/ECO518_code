@@ -5,6 +5,10 @@ function [mHat, W] = localpoly(X, y, X0, p, h)
 %  - X0: grid points
 %  - p:  Degree of polynomial
 %  - h:  bandwidth
+% Output
+%  - m: fitted value
+%  - W: weight matrix
+
 
 [n, k] = size(X);
 
