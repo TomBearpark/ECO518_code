@@ -9,7 +9,7 @@ dir <- paste0("/Users/tombearpark/Documents/princeton/1st_year/term2/",
 out <- paste0(dir, "out/")
 setwd(dir)
 set.seed(1)
-plan(multisession, workers = 8)
+# plan(multisession, workers = 8)
 ###########################################################
 # Question 1
 ###########################################################
@@ -66,6 +66,8 @@ p1
 
 ###########################################################
 
+df <- read_csv(paste0(dir, "engel.csv")) %>% 
+  mutate(log_inc = log(income))
 df$share_food <- df$foodexp / df$income
 
 Y <- df$share_food
@@ -77,7 +79,7 @@ m_nw <- function(X0, X, Y, h){
   denom <- rowSums(w)
   w <- w / denom
   mhat <- drop(w %*% Y)
-  data.frame(X0 = X0, mhat = mhat, wi_Xi = K(X0)/denom)
+  data.frame(X0 = X0, mhat = mhat, wi_Xi = K(X0)/denom, h = h)
 }
 
 CV <- function(hvals, X, Y, mfunc = m_nw){
@@ -89,7 +91,7 @@ CV <- function(hvals, X, Y, mfunc = m_nw){
     CV_out$CV[i] <- sum(((Y - m$mhat) / (1 - m$wi_Xi))^2) / N
     i <- 1 + i
   }
-  CV_out 
+  CV_out
 }
 
 findMin <- function(CV_results) {
@@ -97,7 +99,7 @@ findMin <- function(CV_results) {
   CV_results$h[CV_results$CV == minCV]
 }
 
-CV_nw_results <- CV(hvals = seq(0.1, 1, 0.01) , X = X, Y = Y) 
+CV_nw_results <- CV(hvals = seq(0.1, 1, 0.01) , X = X, Y = Y, mfunc = m_nw )
 CV_nw_results %>% plot()
 CV_h_nw <- findMin(CV_nw_results)
 rangeX <- seq(min(X), max(X), length.out = 100)
@@ -107,6 +109,15 @@ ggplot() +
   geom_line(data = mhat_nw, aes(x = X0, y = mhat)) + 
   geom_point(data = df, aes(x = log_inc, y = share_food), alpha = .2)
 
+
+# Try and do a cool plot
+plot_df <- map_dfr(c(seq(0.1, 1, 0.05), CV_h_nw), m_nw, X0 = rangeX, X = X, Y = Y)
+
+ggplot(plot_df,  aes(x = X0, y = mhat, group = h)) + 
+  geom_line(aes(color = h))  + 
+  geom_line(data = filter(plot_df, h == CV_h_nw), aes(x = X0, y = mhat), color = "red") + 
+  scale_color_viridis_c() + 
+  geom_point(data = df, aes(x = log_inc, y = share_food), alpha = .2)
 
 ###########################################################
 m_ll <- function(X0, X, Y, h){
@@ -126,7 +137,7 @@ m_ll <- function(X0, X, Y, h){
   
   w <- sapply(X, weight) %>% rbind()
   mhat <- drop(w %*% Y)
-  data.frame(X0 = X0, mhat = mhat, wi_Xi = weight(X0))
+  data.frame(X0 = X0, mhat = mhat, wi_Xi = weight(X0), h = h)
 }
 
 CV_ll_results <- CV(hvals = seq(1,2, 0.01), X = X, Y = Y, mfunc = m_ll) 
@@ -137,6 +148,23 @@ mhat_ll <- map_dfr(X, m_ll, X, Y, h = CV_h_ll)
 ggplot() + 
   geom_line(data = mhat_ll, aes(x = X0, y = mhat)) + 
   geom_point(data = df, aes(x = log_inc, y = share_food), alpha = .2)
+
+# Cool plot to show how the bandwidth affects the estimates 
+plot_df2 <- data.frame(X0 = 0, mhat = 0, wi_Xi = 0, h = 0)
+for(h in c(seq(0.5, 3, 0.1), CV_h_ll)){
+  dfh <- map_dfr(rangeX, m_ll, X, Y, h = h)
+  plot_df2 <- bind_rows(plot_df2, dfh)
+}
+plot_df2 <- tibble(plot_df2)
+plot_df2 <- plot_df2[-1,] 
+ggplot(plot_df2,  aes(x = X0, y = mhat, group = h)) + 
+  geom_line(aes(color = h))  +
+  geom_line(data = filter(plot_df2, h == CV_h_ll), aes(x = X0, y = mhat), color = "red") + 
+  scale_color_viridis_c() + 
+  geom_point(data = df, aes(x = log_inc, y = share_food), alpha = .2) + 
+  ggtitle("Local Linear Regression Estimates")
+
+
 
 ###########################################################
 z <- function(x, p){
@@ -174,4 +202,5 @@ mhat_poly <- map_dfr(X, m_poly, X, Y, h = 2)
 ggplot() + 
   geom_line(data = mhat_poly, aes(x = X0, y = mhat)) + 
   geom_point(data = df, aes(x = log_inc, y = share_food), alpha = .2)
+
 
