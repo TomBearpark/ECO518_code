@@ -77,6 +77,12 @@ ggplot(df) +
 # as a function of h (the bandwidth) on the interval (0,1] in 
 # 0.01 increments (e.g. h = 0.01, 0.02, . . . , 0.99, 1).
 
+# Helper function for creating vectors of polynomials 
+z <- function(x, p){
+  z <- c(1)
+  for(j in 1:p) z[j+1] <- x^j
+  matrix(z)
+}
 
 # Returns weight for observation i at X0
 w_i <- function(Xi, X0, X, h, type){
@@ -87,26 +93,28 @@ w_i <- function(Xi, X0, X, h, type){
     
   }else if (type == "local_linear"){
     
-    z  <- matrix(c(1, X0))
-    Zi <- matrix(c(1, Xi))
+    z   <- matrix(c(1, X0))
+    Zi  <- matrix(c(1, Xi))
     mid <- matrix(c(0,0,0,0), nrow = 2)
+    
     for(j in 1:length(X)){
-      Zj <- matrix(c(1, X[j]))
+      Zj  <- matrix(c(1, X[j]))
       mid <- mid + K(X[j], X0, h) * Zj %*% t(Zj)
     }
+    
     w_val <- (t(z) %*% solve(mid) %*% (K(Xi, X0, h) * Zi)) %>% as.numeric()
     
   }else if (type == "poly"){
-    
     p <- h
     Zi <- z(X0, p)
     zx <- z(Xi, p)
-    mid <- matrix(0, p+1, p+1)
-    for(j in 1:length(X)){
-      Zj <- z(X[j], p)
-      mid <- mid +  Zj %*% t(Zj)
+    Xmat <- c(rep(1, length(X)))
+    for(p in 1:h){
+      Xmat <- c(Xmat, X^p)
     }
-    w_val <-t(zx) %*% solve(mid) %*% Zi %>% as.numeric()
+    Xmat <- matrix(Xmat, nrow = length(X))
+    w_val <- t(zx) %*% solve(t(Xmat) %*% Xmat) %*% Zi %>% as.numeric()
+      
   }else stop("not implemented")
   
   return(w_val)
@@ -177,6 +185,8 @@ map_dfr(range, m, X = X, h = CV_star, Y = Y) %>%
 # where X is the log income data. Plot the estimated regression curve 
 # and a scatterplot of the data in the same graph.
 
+CV(h = 1.25, X = X, Y = Y, type = "local_linear")
+
 # This computation is very long!! 
 CV_results_ll <- 
   data.frame(h = hvals, 
@@ -209,14 +219,10 @@ map_dfr(range, m, X = X, h = h_star_ll, Y = Y, type = "local_linear") %>%
 # value of X, where X is the log income data. Plot the estimated regression 
 # curve and a scatterplot of the data in the same graph.
 
-z <- function(x, p){
-  z <- c(1)
-  for(j in 1:p) z[j+1] <- x^j
-  matrix(z)
-}
-
 pvals <- seq(1,10)
 CV_results_poly <- data.frame(h = pvals, CV = 0)
+
+CV(p, X, Y, type = "poly")
 
 for(p in pvals){
   print(p)
@@ -245,4 +251,73 @@ plot_df_poly %>% filter(h == 2) %>%
     geom_point(data = df, aes(x = log_inc, y = share_food), alpha = 0.2) +
     ylim(c(0,1)) + xlim(5.5, 9) + 
     ggsave(paste0(out, "poly2_w_scatter.png"))
+
+#########################################################
+# Question 2
+#########################################################
+
+nw <- function(x, X, Y, h, K = dnorm) {
+  
+  # Arguments
+  # x: evaluation points
+  # X: vector (size n) with the predictors
+  # Y: vector (size n) with the response variable
+  # h: bandwidth
+  # K: kernel
+  
+  # Matrix of size n x length(x) (rbind() is called for ensuring a matrix
+  # output if x is a scalar)
+  Kx <- rbind(sapply(X, function(Xi) K((x - Xi) / h) / h))
+  
+  # Weights
+  W <- Kx / rowSums(Kx) # Column recycling!
+  
+  # Means at x ("drop" to drop the matrix attributes)
+  drop(W %*% Y)
+  
+}
+
+
+df2 <- read_csv("nls.csv") %>% 
+  rename(Y = luwe, X = educ, R = exper) %>% 
+  mutate(R2 = R^2)
+
+reg1 <- lm(df2, formula = "Y ~ X + R + R2") 
+summary(reg1)
+
+
+
+# ii)
+
+Y <- df2$Y
+R <- df2$R
+X <- df2$X
+
+# Find an optimal H using CV
+hvals <- seq(0.1, 1, 0.1)
+CV_results_2 <- data.frame(h = hvals, 
+                        CV = map_dbl(hvals, CV, X = R, Y = X, type = "kernel"))
+CV_results_2 <- filter(CV_results_2, !is.na(CV))
+
+ggplot(CV_results_2) + 
+  geom_line(aes(x = h, y = CV))
+
+CV_star_2 <- CV_results_2$h[CV_results_2$CV == min(CV_results_2$CV, na.rm = T)]
+
+x_grid <- seq(min(R), max(R), length.out = 100)
+plot(R, X)
+lines(x_grid, nw(x = x_grid, X = R, Y = X, h = 0.7), col = 2)
+
+plot(R, Y)
+lines(x_grid, nw(x = x_grid, X = R, Y = Y, h = 0.7), col = 2)
+
+
+E_X.R <- map_dfr(x_grid, m, X = X, h = CV_star_2, Y = Y) 
+
+ggplot(E_X.R) + 
+  geom_line(aes(x = x, y = m)) + 
+  geom_point(data = df2, aes(x = R, y = X))
+
+
+
 
