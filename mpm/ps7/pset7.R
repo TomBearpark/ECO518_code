@@ -30,7 +30,7 @@ ggplot(df) +
 # Normal kernel function
 K <- function(Xi, X0, h){
   z <- (Xi - X0) / h
-  (2*pi) ^ (-.5) * exp(- (1 / 2) * z^2 ) 
+  (2*pi) ^ (-.5) * exp(- (1 / 2) * z^2) 
 }
 
 # Density function, returns the density at X0, given data X and bandwidth h
@@ -45,7 +45,7 @@ f <- function(X0, X, h){
 
 # Calculate h using normal reference rule 
 h_star <- function(X){
-  N <- length(X)
+  N     <- length(X)
   sigma <- sd(X)
   1.059 * sigma  / N ^ (0.2)
 }
@@ -68,6 +68,8 @@ df$share_food <- df$foodexp / df$income
 Y <- df$share_food
 X <- df$log_inc
 
+# Naradaya Watson Kernel regression estimator. Function gives predicted
+# value of Y at X0, given the data Y and X and a bandwidth h
 m_nw <- function(X0, X, Y, h){
   K <- function(Xi) dnorm((Xi - X0) / h)
   w <- sapply(X, K) %>% rbind()
@@ -77,6 +79,8 @@ m_nw <- function(X0, X, Y, h){
   data.frame(X0 = X0, mhat = mhat, wi_Xi = K(X0)/denom, h = h)
 }
 
+# Runs leave one out cross validation for a set of bandwidths, hvals, given
+# data X and Y, and npm regression function m_nw
 CV <- function(hvals, X, Y, mfunc = m_nw){
   CV_out <- data.frame(h = hvals, CV = 0)
   N <- length(Y)
@@ -89,14 +93,17 @@ CV <- function(hvals, X, Y, mfunc = m_nw){
   CV_out
 }
 
+# Helper function to identify the minimum MSE h
 findMin <- function(CV_results) {
   CV_results$h[CV_results$CV == min(CV_results$CV)]
 }
 
+# Run the N-W regression cross val
 CV_nw_results <- CV(hvals = seq(0.1, 1, 0.01) , X = X, Y = Y, mfunc = m_nw )
 CV_nw_results %>% plot()
 CV_h_nw <- findMin(CV_nw_results)
 
+# Use optimal h to plot the expected value function 
 rangeX <- seq(min(X), max(X), length.out = 100)
 mhat_nw <- m_nw(rangeX, X, Y, CV_h_nw)
 ggplot() + 
@@ -116,6 +123,9 @@ ggplot(plot_df,  aes(x = X0, y = mhat, group = h)) +
 
 ###########################################################
 # 1 (iii)
+
+# Runs local linear regression, returns expected value of Y at X0, given the 
+# data (X,Y), and the bandwidth h
 m_ll <- function(X0, X, Y, h){
   
   K <- function(Xi) dnorm((Xi - X0) / h)
@@ -126,7 +136,6 @@ m_ll <- function(X0, X, Y, h){
     mid <- mid + K(X[j]) * Zj %*% t(Zj)
   }
   mid <- solve(mid)
-  
   weight <- function(Xi) t(z) %*% mid %*% (K(Xi) * matrix(c(1, Xi)))
   
   w <- sapply(X, weight) %>% rbind()
@@ -134,11 +143,13 @@ m_ll <- function(X0, X, Y, h){
   data.frame(X0 = X0, mhat = mhat, wi_Xi = weight(X0), h = h)
 }
 
+# Run the cross val, get optimum value of h
 CV_ll_results <- CV(hvals = seq(1,2, 0.01), X = X, Y = Y, mfunc = m_ll) 
 CV_ll_results %>% plot()
 CV_h_ll <- findMin(CV_ll_results)
-mhat_ll <- map_dfr(X, m_ll, X, Y, h = CV_h_ll)
 
+# Plot the resulting expected value function for optimised h
+mhat_ll <- map_dfr(X, m_ll, X, Y, h = CV_h_ll)
 ggplot() + 
   geom_line(data = mhat_ll, aes(x = X0, y = mhat)) + 
   geom_point(data = df, aes(x = log_inc, y = share_food), alpha = .2)
@@ -153,22 +164,26 @@ plot_df2 <- tibble(plot_df2)
 plot_df2 <- plot_df2[-1,] 
 ggplot(plot_df2,  aes(x = X0, y = mhat, group = h)) + 
   geom_line(aes(color = h))  +
-  geom_line(data = filter(plot_df2, h == CV_h_ll), aes(x = X0, y = mhat), color = "red") + 
+  geom_line(data = filter(plot_df2, h == CV_h_ll), 
+            aes(x = X0, y = mhat), color = "red") + 
   scale_color_viridis_c() + 
   geom_point(data = df, aes(x = log_inc, y = share_food), alpha = .2) + 
   ggtitle("Local Linear Regression Estimates")
 
 
-
 ###########################################################
 # 1 (iv)
+# Polynomial series regression
 
+# Helper function - creates a vector of the polynomials of x up to order p
 z <- function(x, p){
   z <- c(1)
   for(j in 1:p) z[j+1] <- x^j
   matrix(z)
 }
 
+# Run polynomial series regression, returns expected value of Y at value X0
+# given the data X,Y and the polynomial order, h
 m_poly <- function(X0, X, Y, h){
   
   p <- h
@@ -178,14 +193,14 @@ m_poly <- function(X0, X, Y, h){
     mid <- mid + Zj %*% t(Zj)
   }
   mid <- solve(mid)
-  
   weight <- function(Xi) t(z(X0, p)) %*% mid %*%  z(Xi, p)
-  
   w <- sapply(X, weight) %>% rbind()
   mhat <- drop(w %*% Y)
   data.frame(X0 = X0, mhat = mhat, wi_Xi = weight(X0))
 }
 
+# Run the CV for each polynomial order. Note, doing this using the try()
+# command since some polynomial orders to not have convergent estimators 
 pvals <- seq(1,10)
 CV_results_poly <- data.frame(h = pvals, CV = 0)
 for(p in pvals){
@@ -193,10 +208,31 @@ for(p in pvals){
   try(CV_results_poly$CV[p] <- CV(hvals = p, X, Y, mfunc = m_poly)$CV)
 }
 plot(CV_results_poly$CV)
+
+# Plot the conditional mean function, for the optimal polynomial order 
 mhat_poly <- map_dfr(rangeX, m_poly, X, Y, h = 2)
 ggplot() + 
   geom_line(data = mhat_poly, aes(x = X0, y = mhat)) + 
   geom_point(data = df, aes(x = log_inc, y = share_food), alpha = .2)
+
+
+# All of them on one plot... 
+mutate(mhat_poly, type = "Poly 2") %>% 
+  bind_rows(mutate(mhat_nw, type = "NW")) %>% 
+  bind_rows(mutate(mhat_ll, type = "Local Linear")) %>% 
+  ggplot() + 
+    geom_line(aes(x = X0, y = mhat, color = type)) + 
+    geom_point(data = df, aes(x = log_inc, y = share_food), alpha = .2)
+
+# Which functional form does best?
+data.frame(
+  type = c("poly2", "loc_linear", "nw"),
+   value= c(CV_results_poly$CV[CV_results_poly$h == 2], 
+   min(CV_ll_results$CV), 
+   min(CV_nw_results$CV))
+  ) %>% 
+  ggplot() + 
+  geom_col(aes(x = type, y= value))
 
 
 ###########################################################
@@ -205,6 +241,7 @@ ggplot() +
 
 # i)
 
+# Load data, run a parametric regression
 df2 <- read_csv("nls.csv") %>% 
   rename(Y = luwe, X = educ, R = exper) %>% 
   mutate(R2 = R^2)
@@ -213,8 +250,9 @@ reg1 <- lm(df2, formula = parametric)
 summary(reg1)
 coef(reg1)["X"]
 
+###########################################################
 # ii)
-
+# Implement the double residual technique
 Y <- df2$Y
 R <- df2$R
 X <- df2$X
@@ -222,7 +260,7 @@ X <- df2$X
 rangeR <- seq(min(R), max(R), length.out = 100)
 hvals <- seq(0.1, 1, 0.1)
 
-# E[X | R]
+# E[X | R]- calculate the oprimal band width
 CV_X.R <- CV(hvals = seq(0.1, 1, 0.05) , X = R, Y = X, mfunc = m_nw)
 CV_X.R <- filter(CV_X.R, !is.na(CV))
 CV_X.R %>% plot()
@@ -233,7 +271,7 @@ ggplot() +
   geom_point(data = df2, aes(x = R, y = X), alpha = .2) + 
   xlab("R") + ylab("X")
 
-# E[Y | R]
+# E[Y | R] - calculate the oprimal band width
 CV_Y.R <- CV(hvals = seq(0.1, 1, 0.05) , X = R, Y = Y, mfunc = m_nw)
 CV_Y.R <- filter(CV_Y.R, !is.na(CV))
 CV_Y.R %>% plot()
@@ -244,11 +282,10 @@ ggplot() +
   geom_point(data = df2, aes(x = R, y = X), alpha = .2) + 
   xlab("R") + ylab("Y")
 
-
 # Calculate the expected values: 
-Xhat.R <- m_nw(R, X = R, Y = X, CV_h_X.R)
+Xhat.R   <- m_nw(R, X = R, Y = X, CV_h_X.R)
 df2$Xhat <- Xhat.R$mhat
-Yhat.R <- m_nw(R, X = R, Y = Y, CV_h_Y.R)
+Yhat.R   <- m_nw(R, X = R, Y = Y, CV_h_Y.R)
 df2$Yhat <- Yhat.R$mhat
 
 df2 <- df2 %>% 
@@ -257,20 +294,21 @@ df2 <- df2 %>%
 ggplot(df2) + 
   geom_point(aes(x = x_res, y = y_res))
 
+# obtain the coefficeient estimators 
 reg <- lm(data = df2, formula = "y_res ~ 0 + x_res")
 
-
-# Bootstrap the estimators
+###########################################################
+# Optional extra: Bootstrap the estimators
 
 # Simple npm bootstrap for (i) estimator 
-B <- 1000
+B <- 10000
 npm_boot <- function(df, i, formula){
   draw <- slice_sample(df, prop = 1, replace = TRUE)
   reg  <- lm(data = draw, formula = as.formula(formula))
   tibble(i = i, value = coef(reg)["X"])
 }
 draws_npm <- map_dfr(seq(1:B), npm_boot, df = df2, formula = parametric)
-sd_npm <- sd(draws_npm$value)
+sd_npm    <- sd(draws_npm$value)
 ggplot(draws_npm) + 
   geom_density(aes(x = value))
 
