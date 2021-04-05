@@ -1,5 +1,5 @@
 %% Preliminaries
-
+% Main file for problem 2.
 clear
 clc
 addpath('functions/')
@@ -24,15 +24,15 @@ lm1 = fitlm(df, 'Y~X+R+R2');
 
 % E(Y|R), NW 
 %hGrid_Y_R = [.1:.1:.7, .75:.025:1.25, 1.3:.1:1.5];
-hGrid_Y_R                  = .75:.025:1.25;
+hGrid_Y_R                  = .6:.01:1.2;
 [Y_RHat, CV_Y_R, hOpt_Y_R] = localpolyCV(df.R, df.Y, df.R, 0, hGrid_Y_R);
 
 
 % E(X|R), NW
-hGrid_X_R = .7:.01:.8;
+hGrid_X_R = .6:.01:1.2;
 [X_RHat, CV_X_R, hOpt_X_R] = localpolyCV(df.R, df.X, df.R, 0, hGrid_X_R);
+beta0                      = regress( df.Y - Y_RHat, [df.X - X_RHat]);  
 
-beta0  = regress( df.Y - Y_RHat, [df.X - X_RHat (df.X - X_RHat)*0+1]);  
 
 
 
@@ -49,8 +49,8 @@ for jBoot = 1:nBoot
     dfBoot = datasample(df, n, 'Replace', true);
 
     % Estimate LM
-    lm1                   = fitlm(dfBoot, 'Y~X+R+R2');
-    ResBoot.linear(jBoot) = lm1.Coefficients{'X', 'Estimate'};
+    lm1Boot                   = fitlm(dfBoot, 'Y~X+R+R2');
+    ResBoot.linear(jBoot) = lm1Boot.Coefficients{'X', 'Estimate'};
     
     % Estimate semi parametric model
     [Y_RHatBoot] = localpoly(dfBoot.R, dfBoot.Y, dfBoot.R, 0, hOpt_Y_R);
@@ -67,7 +67,7 @@ end
 figure()
 plot(hGrid_Y_R, CV_Y_R)
 resizeFig(figSize)
-title(['h^{*}_{CV} = ' num2str(hOpt_Y_R)])
+title(['h^{*}_{CV, Y} = ' num2str(hOpt_Y_R)])
 box on; grid on;
 saveas(gcf, [figDir, 'CV_ExpYR.png'])
 
@@ -76,7 +76,7 @@ saveas(gcf, [figDir, 'CV_ExpYR.png'])
 figure()
 plot(hGrid_X_R, CV_X_R)
 resizeFig(figSize)
-title(['h^{*}_{CV} = ' num2str(hOpt_Y_R)])
+title(['h^{*}_{CV, X} = ' num2str(hOpt_X_R)])
 box on; grid on;
 saveas(gcf, [figDir, 'CV_ExpXR.png'])
 
@@ -102,3 +102,4 @@ lgd = legend({['Semi-parametric (\beta=' num2str(beta0, 3) ...
     'Location', 'southoutside');
 saveas(gcf, [figDir, 'bootCompare.png'])
 
+save('main2.mat')
