@@ -19,7 +19,8 @@ df <- read_csv(paste0(dir, "engel.csv")) %>%
   mutate(log_inc = log(income))
 
 ggplot(df) + 
-  geom_point(aes(x = foodexp, y = log_inc))
+  geom_point(aes(x = foodexp, y = log_inc)) +
+  ggsave(file = paste0(out, "0_initial_scatter.png"), height = 5, width = 6)
 
 ###########################################################
 # 1.(i) 
@@ -56,8 +57,8 @@ h <- h_star(X)
 density <- map_dfr(X, f, X = X, h = h)
 ggplot(density) + 
   geom_point(aes( x = X, y = density)) + 
-  ggtitle(paste0("bandwidth  = ", h))
-
+  ggtitle(paste0("bandwidth  = ", round(h, 5))) +
+  ggsave(file = paste0(out, "1i_density.png"), height = 5, width = 6)
 
 ###########################################################
 # 1 (ii)
@@ -100,15 +101,22 @@ findMin <- function(CV_results) {
 
 # Run the N-W regression cross val
 CV_nw_results <- CV(hvals = seq(0.1, 1, 0.01) , X = X, Y = Y, mfunc = m_nw )
-CV_nw_results %>% plot()
 CV_h_nw <- findMin(CV_nw_results)
+
+CV_nw_results %>% ggplot() + 
+  geom_point(aes(x = h, y = CV)) + 
+  ggtitle("N-W Regression CV Value as a function of bandwidth")  +
+  ggsave(file = paste0(out, "1ii_CV.png"), height = 5, width = 6)
 
 # Use optimal h to plot the expected value function 
 rangeX <- seq(min(X), max(X), length.out = 100)
 mhat_nw <- m_nw(rangeX, X, Y, CV_h_nw)
 ggplot() + 
   geom_line(data = mhat_nw, aes(x = X0, y = mhat)) + 
-  geom_point(data = df, aes(x = log_inc, y = share_food), alpha = .2)
+  geom_point(data = df, aes(x = log_inc, y = share_food), alpha = .2) +
+  ggtitle(paste0("N-W Regression, Bandwidth = ", CV_h_nw)) + 
+  xlab("Log income") + ylab("Share food") + 
+    ggsave(file = paste0(out, "1ii_mhat_scatter.png"), height = 5, width = 6) 
 
 # Try and do a cool plot
 plot_df <- map_dfr(c(seq(0.1, 1, 0.05), CV_h_nw), 
@@ -119,7 +127,9 @@ ggplot(plot_df,  aes(x = X0, y = mhat, group = h)) +
   geom_line(data = filter(plot_df, h == CV_h_nw), 
             aes(x = X0, y = mhat), color = "red") + 
   scale_color_viridis_c() + 
-  geom_point(data = df, aes(x = log_inc, y = share_food), alpha = .2)
+  geom_point(data = df, aes(x = log_inc, y = share_food), alpha = .2) + 
+  xlab("Log income") + ylab("Share food") + 
+  ggsave(file = paste0(out, "1ii_mhat_varying_h_spaghetti.png"), height = 5, width = 6) 
 
 ###########################################################
 # 1 (iii)
@@ -145,14 +155,22 @@ m_ll <- function(X0, X, Y, h){
 
 # Run the cross val, get optimum value of h
 CV_ll_results <- CV(hvals = seq(1,2, 0.01), X = X, Y = Y, mfunc = m_ll) 
-CV_ll_results %>% plot()
+
+CV_ll_results %>% ggplot() + 
+  geom_point(aes(x = h, y = CV)) + 
+  ggtitle("Local Linear Regression CV Value as a function of bandwidth")  +
+  ggsave(file = paste0(out, "1iii_CV.png"), height = 5, width = 6)
+
 CV_h_ll <- findMin(CV_ll_results)
 
 # Plot the resulting expected value function for optimised h
 mhat_ll <- map_dfr(X, m_ll, X, Y, h = CV_h_ll)
 ggplot() + 
   geom_line(data = mhat_ll, aes(x = X0, y = mhat)) + 
-  geom_point(data = df, aes(x = log_inc, y = share_food), alpha = .2)
+  geom_point(data = df, aes(x = log_inc, y = share_food), alpha = .2)+
+  ggtitle(paste0("Local Linear Regression, Bandwidth = ", CV_h_ll)) + 
+  xlab("Log income") + ylab("Share food") + 
+  ggsave(file = paste0(out, "1iii_mhat_scatter.png"), height = 5, width = 6) 
 
 # Cool plot to show how the bandwidth affects the estimates 
 plot_df2 <- data.frame(X0 = 0, mhat = 0, wi_Xi = 0, h = 0)
@@ -160,15 +178,17 @@ for(h in c(seq(0.5, 3, 0.1), CV_h_ll)){
   dfh <- map_dfr(rangeX, m_ll, X, Y, h = h)
   plot_df2 <- bind_rows(plot_df2, dfh)
 }
-plot_df2 <- tibble(plot_df2)
-plot_df2 <- plot_df2[-1,] 
+plot_df2 <- tibble(plot_df2[-1,])
+
 ggplot(plot_df2,  aes(x = X0, y = mhat, group = h)) + 
   geom_line(aes(color = h))  +
   geom_line(data = filter(plot_df2, h == CV_h_ll), 
             aes(x = X0, y = mhat), color = "red") + 
   scale_color_viridis_c() + 
   geom_point(data = df, aes(x = log_inc, y = share_food), alpha = .2) + 
-  ggtitle("Local Linear Regression Estimates")
+  xlab("Log income") + ylab("Share food") + 
+  ggsave(file = paste0(out, "1iii_mhat_varying_h_spaghetti.png"), 
+         height = 5, width = 6) 
 
 
 ###########################################################
@@ -213,7 +233,10 @@ plot(CV_results_poly$CV)
 mhat_poly <- map_dfr(rangeX, m_poly, X, Y, h = 2)
 ggplot() + 
   geom_line(data = mhat_poly, aes(x = X0, y = mhat)) + 
-  geom_point(data = df, aes(x = log_inc, y = share_food), alpha = .2)
+  geom_point(data = df, aes(x = log_inc, y = share_food), alpha = .2) +
+  ggtitle(paste0("Polynomial Series Regression, Order = ", 2)) + 
+  xlab("Log income") + ylab("Share food") + 
+  ggsave(file = paste0(out, "1iv_mhat_scatter.png"), height = 5, width = 6) 
 
 
 # All of them on one plot... 
@@ -222,7 +245,9 @@ mutate(mhat_poly, type = "Poly 2") %>%
   bind_rows(mutate(mhat_ll, type = "Local Linear")) %>% 
   ggplot() + 
     geom_line(aes(x = X0, y = mhat, color = type)) + 
-    geom_point(data = df, aes(x = log_inc, y = share_food), alpha = .2)
+    geom_point(data = df, aes(x = log_inc, y = share_food), alpha = .2) + 
+  xlab("Log income") + ylab("Share food") + 
+  ggsave(file = paste0(out, "1iv_mhat_scatter_compare_estimators.png"), height = 5, width = 6) 
 
 # Which functional form does best?
 data.frame(
@@ -269,7 +294,8 @@ Xhat.R <- m_nw(rangeR, X = R, Y = X, CV_h_X.R)
 ggplot() +
   geom_line(data = Xhat.R, aes(x = X0, y = mhat)) +
   geom_point(data = df2, aes(x = R, y = X), alpha = .2) + 
-  xlab("R") + ylab("X")
+  xlab("R") + ylab("X")+ 
+  ggsave(file = paste0(out, "2_E_X_R.png"), height = 5, width = 6) 
 
 # E[Y | R] - calculate the oprimal band width
 CV_Y.R <- CV(hvals = seq(0.1, 1, 0.05) , X = R, Y = Y, mfunc = m_nw)
@@ -280,7 +306,8 @@ Yhat.R <- m_nw(rangeR, X = R, Y = Y, CV_h_Y.R)
 ggplot() +
   geom_line(data = Xhat.R, aes(x = X0, y = mhat)) +
   geom_point(data = df2, aes(x = R, y = X), alpha = .2) + 
-  xlab("R") + ylab("Y")
+  xlab("R") + ylab("Y") + 
+  ggsave(file = paste0(out, "2_E_Y_R.png"), height = 5, width = 6) 
 
 # Calculate the expected values: 
 Xhat.R   <- m_nw(R, X = R, Y = X, CV_h_X.R)
