@@ -1,4 +1,4 @@
-function out = est2SLS(Z, X, y)
+function Res = est2SLS(Z, X, y)
 % est2SLS()  Estimate 2SLS. Use Hayashi notation.
 % Input:
 %  - Z endogenous variables
@@ -22,9 +22,12 @@ V = (G'*W *G) \ G'* W * Omega * W*G * inv(G'*W*G);  % Heteroskedastic V
 
 
 % Organize output object
-out       = struct;
-out.delta = delta;
-out.V     = V;
-out.Omega = Omega;
-
+Res       = struct;
+Res.delta = delta;
+Res.V     = V;
+Res.Omega = Omega;
+Res.X     = X;
+Res.y     = y;
+Res.Z     = Z;
+Res.n     = n;
 end

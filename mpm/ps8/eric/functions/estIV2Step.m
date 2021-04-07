@@ -1,4 +1,4 @@
-function Res2Step = estIV2Step(Z,X,y)
+function Res = estIV2Step(Z,X,y)
 
 
 [n, kx] = size(X);
@@ -21,12 +21,15 @@ Omega       = X'* diag(eNew.^2) * X/n; % g_i*g_i' where g_i = (y_i-z_i'*delta)*x
 
 V = (G'*W *G) \ G'* W * Omega * W*G * inv(G'*W*G);  % Heteroskedastic V
 
-Res2Step         = struct;
-Res2Step.Res2SLS = Res2SLS;
-Res2Step.delta   = delta;
-Res2Step.Omega   = Omega;
-Res2Step.W       = W;
-Res2Step.V       = V;
-
+Res         = struct;
+Res.Res2SLS = Res2SLS;
+Res.delta   = delta;
+Res.Omega   = Omega;
+Res.W       = W;
+Res.V       = V;
+Res.X       = X;
+Res.y       = y;
+Res.Z       = Z;
+Res.n       = n;
 
 end
