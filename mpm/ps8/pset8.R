@@ -136,8 +136,44 @@ estimate_2SLS <- function(Y, X, R){
   
   sd_gmm <- 1/N * gmm_var %>% diag %>% sqrt()
   
-  tibble(coefficient = drop(beta), sd = sd_gmm)
+  list(results = tibble(coefficient = drop(beta), sd = sd_gmm), 
+       omega = O)
 }
-estimate_2SLS(Y, X, R) %>% xtable()
+results_2sls <- estimate_2SLS(Y, X, R)
+results_2sls$results %>% xtable()
 # tidy(iv_robust(Y ~ X - 1 | R, data = df)) # compare to canned function
 
+# Use the estimate obtained by 2sls to do two setp GMM
+
+initial <- results_2sls
+estimate_2STEP <- function(inital, Y, X, R){
+  
+  omega <- initial$omega
+  W <- solve(omega)
+  
+  N <- length(Y)
+  S_rx <- t(R) %*% X / n
+  S_rr <- t(R) %*% R / n
+  S_ry <- t(R) %*% Y / n
+  
+  beta <- solve(t(S_rx) %*% W %*% S_rx) %*% t(S_rx) %*% W %*% S_ry
+  
+  u_hat <- Y - X %*% beta
+  Omega <- diag(N)
+  diag(Omega) <- u_hat^2
+  
+  G <- -1/N * t(R) %*% X
+  W <-  1/N * solve(t(R) %*% R)
+  O <-  1/N * t(R) %*% Omega %*% R
+  
+  gmm_var <-  solve(t(G) %*% W %*% G) %*% 
+    t(G) %*% W %*% O %*% W %*% G %*% 
+    solve(t(G) %*% W %*% G)
+  
+  sd_gmm <- 1/N * gmm_var %>% diag %>% sqrt()
+  
+  list(results = tibble(coefficient = drop(beta), sd = sd_gmm), 
+       omega = O)
+}
+results_2STEP <- estimate_2STEP(initial, Y,X,R)
+results_2STEP$results %>% xtable
