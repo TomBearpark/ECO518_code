@@ -26,7 +26,7 @@ end
 beta0 = (X'X)^(-1) * X' * Y
 
 # Run the optimisation
-MLE = optimize(beta -> probit_log_lik(beta, X, Y), beta0)
+@time MLE = optimize(beta -> probit_log_lik(beta, X, Y), beta0);
 Optim.minimizer(MLE)
 
 #############################################################################
@@ -44,8 +44,8 @@ Z = convert(Matrix, df[:,[:mixed, :stormy]])
 function estimate_2SLS(X, Y, Z)
     
     # calculate beta
-    beta = (X' * Z * (Z' * Z)^(-1) * Z' * X)^(-1) *  X' * Z * (Z' * Z)^(-1) * Z' * Y
+    beta = (X' * Z * (Z' * Z)^(-1) * Z' * X)^(-1) * X' * Z * (Z' * Z)^(-1) * Z' * Y
     
     # estimate variance 
     u = Y - X * beta
-    omega = 
+    omega = Matrix()
