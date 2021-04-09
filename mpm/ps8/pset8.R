@@ -29,48 +29,81 @@ probit.log.lik <- function(beta, X, Y){
 beta0 <- solve(t(X) %*% X) %*% t(X) %*% Y
 
 # Compute MLE estimator for beta 
-MLE <- optim(par = beta0, probit.log.lik, X = X, Y = Y, method = "BFGS", hessian = TRUE)
+MLE <- optim(par = beta0, probit.log.lik, X = X, Y = Y, 
+             method = "BFGS", hessian = TRUE)
 MLE$par %>% xtable()
 
 # Test its similar to canned R package version 
 glm(part ~ one + kidslt6 + age + educ + nwifeinc, 
     family = binomial(link = "probit"), data = df) %>% summary()
 
-# Estimate the hessian
-h_hat <- function(beta, X, Y){
-  
-  Yhat <- X %*% beta
-  phi  <- pnorm(Yhat)
-  Phi  <- dnorm(Yhat)
-  N    <- length(Y) 
-  k    <- length(beta)
-  
+beta <- MLE$par
+
+hessian <- function(X, Y, beta){
+  yHat <- X %*% beta
+  Phi <- pnorm(yHat)
+  phi <- dnorm(yHat)
+  k <- length(beta)
+  N <- length(Y)
   value <- -phi * (
-          Y * (phi + Yhat * Phi) / Phi^2 + 
-            (1 - Y) * (phi - Yhat * (1 - Phi)) / (1 - Phi^2))
-  
-  weight <- function(i) value[i] * X[i, ] %*% t(X[i,])
+    Y*(phi + yHat * Phi) / Phi^2 + 
+      (1 - Y)* (phi - yHat * ( 1 - Phi)) / (1 - Phi)^2
+  )
+  weight <- function(i) value[i] * X[i, ] %*% t(X[i, ])
   h <- matrix(0, nrow = k, ncol = k)
   for(i in 1:N) h <- h + weight(i)
-  h / N
+  h 
 }
 
-solve(MLE$hessian)%>% diag() %>% sqrt() 
--h_hat(MLE$par, X, Y) %>% diag() %>% sqrt()
+Hess <- - hessian(X, Y, beta)
+H <- Hess %>% solve() %>% diag() %>% sqrt()
 
+H_df <- tibble(parameter = covariates, sd = H, estimator = "Hessian")
 
-# Score
-score <- function(beta, X, Y){
+score_estimator <- function(X, Y, beta){
   Yhat <- X %*% beta
-  phi <- pnorm(Yhat)
-  Phi <- dnorm(Yhat)
-  value <- phi / (Phi * (1 - Phi))
-  weight <- function(i) value[i] * (Y[i] - Phi[i]) * X[i, ]
-  s <- matrix(0, nrow = k)
+  Phi <- pnorm(yHat)
+  phi <- dnorm(yHat)
+  
+  N <- length(Y)           # sample size
+  k <- length(beta)         # number of coefficients
+  
+  value <- Y  * (phi / Phi) - ( 1 - Y) * (phi) / (1 - Phi)
+  
+  weight <- function(i) (value[i] * X[i, ]) %*% t(value[i] * X[i, ])
+  
+  s <- matrix(0, ncol = k, nrow = k)
   for(i in 1:N) s <- s + weight(i)
-  s
+  s 
 }
-score(MLE$par, X, Y)
+Omega <- score_estimator(X, Y, beta)
+O <- Omega %>% solve() %>% diag() %>% sqrt() 
+O_df <- tibble(parameter = covariates, sd = O, estimator = "Score")
+
+# Sandwich estimator:
+S <- solve(H) %*% Omega %*% solve(H) %>%  diag() %>% sqrt()
+S_df <- tibble(parameter = covariates, sd = S, estimator = "Sandwich")
+
+# information estimator
+I_estimator <- function(X, Y, beta){
+  Yhat <- X %*% beta
+  Phi <- pnorm(yHat)
+  phi <- dnorm(yHat)
+  
+  N <- length(Y)           # sample size
+  k <- length(beta)         # number of coefficients
+  
+  value <- phi^2 / (Phi * ( 1 - Phi))
+  
+  weight <- function(i) value[i] * X[i, ] %*% t(X[i, ])
+  
+  I <- matrix(0, ncol = k, nrow = k)
+  for(i in 1:N) I <- I + weight(i)
+  I
+}
+
+I <- I_estimator(X, Y, beta) %>% solve() %>% diag() %>% sqrt()
+I_df <- tibble(parameter = covariates, sd = I, estimator = "I")
 
 # bootstrap SEs
 boot <- function(df, covariates, yvar, i){
@@ -89,7 +122,16 @@ draws %>%
   geom_density(aes(x = value)) + 
   facet_wrap(~parameter, scales = "free")
 
-draws %>% group_by(parameter) %>% summarise(sd = sd(value))
+boot_df <- draws %>% group_by(parameter) %>% summarise(sd = sd(value)) %>% 
+  mutate(estimator = "boot")
+
+results <- bind_rows(boot_df, I_df) %>% 
+  bind_rows(H_df) %>% bind_rows(O_df) %>% bind_rows(S_df)
+pivot_wider(results, id_cols = "estimator", 
+            names_from = "parameter", values_from = "sd") %>% xtable(digits = 4)
+
+# iii)
+# Find a confidence elipsoid around kidslt6 and educ
 
 #############################################################################
 # Question 3
