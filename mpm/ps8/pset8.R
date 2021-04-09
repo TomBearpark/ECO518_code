@@ -1,7 +1,7 @@
 rm(list = ls())
 library(tidyverse) 
 library(xtable)
-library(sandwich);library(lmtest)
+library(sandwich);library(lmtest);library(car)
 library(estimatr)
 
 dir <- paste0("/Users/tombearpark/Documents/princeton/1st_year/term2/", 
@@ -209,9 +209,9 @@ first_stage <- coeftest(lm1, vcov = vcovHC(lm1, "HC1"))
 estimate_2SLS <- function(Y, X, R){
   
   N <- length(Y)
-  S_rx <- t(R) %*% X / n
-  S_rr <- t(R) %*% R / n
-  S_ry <- t(R) %*% Y / n
+  S_rx <- t(R) %*% X / N
+  S_rr <- t(R) %*% R / N
+  S_ry <- t(R) %*% Y / N
   
   # calculate beta
   beta <- solve(t(S_rx) %*% solve(S_rr) %*% S_rx)  %*% 
@@ -230,14 +230,14 @@ estimate_2SLS <- function(Y, X, R){
                 t(G) %*% W %*% O %*% W %*% G %*% 
               solve(t(G) %*% W %*% G)
   
-  sd_gmm <- 1/N * gmm_var %>% diag %>% sqrt()
+  sd_gmm <- sqrt(diag(gmm_var / N))
   
   list(results = tibble(coefficient = drop(beta), sd = sd_gmm), 
        omega = O)
 }
 results_2sls <- estimate_2SLS(Y, X, R)
 results_2sls$results %>% xtable()
-# tidy(iv_robust(Y ~ X - 1 | R, data = df)) # compare to canned function
+tidy(iv_robust(Y ~ X - 1 | R, data = df)) # compare to canned function
 
 # Use the estimate obtained by 2sls to do two setp GMM
 
@@ -248,9 +248,9 @@ estimate_2STEP <- function(inital, Y, X, R){
   W <- solve(omega)
   
   N <- length(Y)
-  S_rx <- t(R) %*% X / n
-  S_rr <- t(R) %*% R / n
-  S_ry <- t(R) %*% Y / n
+  S_rx <- t(R) %*% X / N
+  S_rr <- t(R) %*% R / N
+  S_ry <- t(R) %*% Y / N
   
   beta <- solve(t(S_rx) %*% W %*% S_rx) %*% t(S_rx) %*% W %*% S_ry
   
@@ -266,10 +266,40 @@ estimate_2STEP <- function(inital, Y, X, R){
     t(G) %*% W %*% O %*% W %*% G %*% 
     solve(t(G) %*% W %*% G)
   
-  sd_gmm <- 1/N * gmm_var %>% diag %>% sqrt()
+  sd_gmm <- sqrt(diag(gmm_var / N))
   
   list(results = tibble(coefficient = drop(beta), sd = sd_gmm), 
        omega = O)
 }
 results_2STEP <- estimate_2STEP(initial, Y,X,R)
 results_2STEP$results %>% xtable
+
+# Anderson-Rubin Confidence Set
+range <- seq(-4, 1, 0.01)
+b <- 1
+ar <- tibble(b = range, reject = 0)
+for(b in range){
+  reg <- lm(Y - b*X[,2] ~ R - 1)
+  test <- linearHypothesis(reg, c("Rmixed", "Rstormy"), c(0,0), test = "F")
+  ar$reject[ar$b == b] <- (test$`Pr(>F)`[2]<0.05)*1
+}
+delta <- results_2sls$results$coefficient[2]
+s <- results_2sls$results$sd[2]
+
+ggplot(data = ar) + 
+  geom_point(aes(x = b, y = reject)) + 
+  geom_vline(xintercept = delta, color = "red") + 
+  geom_vline(xintercept = c(delta - 1.96 * s, delta + 1.96 * s), color = "blue")
+
+
+# Overidentification test
+
+theta <- results_2STEP$results$coefficient %>% as.matrix()
+omega <- results_2STEP$omega
+Q <- function(theta, omega , Y, X, R){
+  N <- length(Y)
+  (1 / N) * t(t(R) %*% (Y - X %*% theta)) %*% solve(omega) %*% 
+    t(R) %*% (Y - X %*% theta) %>% drop()
+}
+q <- Q(theta, omega, Y, X, R)
+pchisq(q, df = 1)
