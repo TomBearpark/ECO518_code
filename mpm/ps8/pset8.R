@@ -286,6 +286,7 @@ for(b in range){
 delta <- results_2sls$results$coefficient[2]
 s <- results_2sls$results$sd[2]
 
+
 ggplot(data = ar) + 
   geom_point(aes(x = b, y = reject)) + 
   geom_vline(xintercept = delta, color = "red") + 
@@ -298,8 +299,9 @@ theta <- results_2STEP$results$coefficient %>% as.matrix()
 omega <- results_2STEP$omega
 Q <- function(theta, omega , Y, X, R){
   N <- length(Y)
-  (1 / N) * t(t(R) %*% (Y - X %*% theta)) %*% solve(omega) %*% 
-    t(R) %*% (Y - X %*% theta) %>% drop()
+  (1 / N) * t(t(R) %*% (Y - X %*% theta)) %*% solve(omega) %*%( (1 / N) *
+    t(R)) %*% (Y - X %*% theta) %>% drop()
 }
-q <- Q(theta, omega, Y, X, R)
+N <- length(Y)
+q <-N* Q(theta, omega, Y, X, R)
 pchisq(q, df = 1)
