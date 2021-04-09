@@ -8,7 +8,7 @@ function betaHat = estProbit(X, y)
 assert(length(y) == n)
 
 % Negative log likelihood function
-negloglik = @(beta) sum(y .* log(normcdf(X*beta)) + (1-y) .* log(1 - normcdf(X*beta)));
+negloglik = @(beta) -sum(y .* log(normcdf(X*beta)) + (1-y) .* log(1 - normcdf(X*beta)));
 beta0     = (X'*X) \ X'*y ;  % Initialize with OLS
 betaHat   = fmincon(negloglik, beta0);
 
