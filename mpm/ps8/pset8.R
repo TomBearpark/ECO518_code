@@ -61,7 +61,7 @@ H <- Hess %>% solve() %>% diag() %>% sqrt()
 H_df <- tibble(parameter = covariates, sd = H, estimator = "Hessian")
 
 score_estimator <- function(X, Y, beta){
-  Yhat <- X %*% beta
+  yHat <- X %*% beta
   Phi <- pnorm(yHat)
   phi <- dnorm(yHat)
   
@@ -81,12 +81,12 @@ O <- Omega %>% solve() %>% diag() %>% sqrt()
 O_df <- tibble(parameter = covariates, sd = O, estimator = "Score")
 
 # Sandwich estimator:
-S <- solve(H) %*% Omega %*% solve(H) %>%  diag() %>% sqrt()
+S <- solve(Hess) %*% Omega %*% solve(Hess) %>%  diag() %>% sqrt()
 S_df <- tibble(parameter = covariates, sd = S, estimator = "Sandwich")
 
 # information estimator
 I_estimator <- function(X, Y, beta){
-  Yhat <- X %*% beta
+  yHat <- X %*% beta
   Phi <- pnorm(yHat)
   phi <- dnorm(yHat)
   
@@ -123,15 +123,69 @@ draws %>%
   facet_wrap(~parameter, scales = "free")
 
 boot_df <- draws %>% group_by(parameter) %>% summarise(sd = sd(value)) %>% 
-  mutate(estimator = "boot")
+  mutate(estimator = "Bootstrap")
 
 results <- bind_rows(boot_df, I_df) %>% 
   bind_rows(H_df) %>% bind_rows(O_df) %>% bind_rows(S_df)
-pivot_wider(results, id_cols = "estimator", 
-            names_from = "parameter", values_from = "sd") %>% xtable(digits = 4)
 
+pivot_wider(results, id_cols = "estimator", 
+            names_from = "parameter", values_from = "sd") %>% 
+  xtable(digits = 4)
+
+
+results %>% ggplot() +
+  geom_bar(aes(x = sd, y = estimator), stat = "identity") +
+  facet_wrap(~parameter, scales = "free")
+
+
+########################################################################
 # iii)
-# Find a confidence elipsoid around kidslt6 and educ
+########################################################################
+
+# Find a confidence ellipsoid around kidslt6 and educ
+gamma <- c(0,0)
+A <- matrix(c(0,1,0,0,0, 
+              0,0,0,1,0), nrow = 2, byrow = T)
+N <- length(Y)
+V <- solve(Hess) * N
+Q <- qchisq(.95, df = length(gamma))
+
+V %>% diag() %>% sqrt() 
+
+scale <- 0.5
+range_kidslt6 <- seq(beta[2] - 0.4 / scale, beta[2] + 0.4 / scale, length.out = 100) 
+range_educ <- seq(beta[4] - 0.05 / scale, beta[4] + 0.05 / scale, length.out = 100) 
+
+
+mid <- solve(A %*% V %*% t(A))
+
+CI <- tibble(kidslt6 = 0, educ = 0, reject = 0, qval = 0)
+for(k in range_kidslt6){
+  for(e in range_educ){
+    
+    gamma <- matrix(c(k,e))
+    
+    qval <- N * t((A %*% beta - gamma)) %*% mid %*% (A %*% beta - gamma) %>% drop()
+    reject <- ifelse(qval <= Q, 0, 1) %>% drop()
+    CI <- bind_rows(CI, 
+      tibble(kidslt6 = k, educ = e, reject = reject, qval = qval))
+  }
+  
+}
+CI <- CI[-c(1),]
+betas <- data.frame(kidslt6 = beta[2], educ=beta[4])
+sd_betas <- data.frame(kidslt6 = boot_df$sd[3], educ = boot_df$sd[2])
+CI$reject <- factor(CI$reject)
+
+ggplot(CI) + geom_point(aes(x = kidslt6, y = educ, color = qval), alpha = 0.5) + 
+  scale_color_viridis_c()
+
+ggplot(CI) + geom_point(aes(x = kidslt6, y = educ, color = reject), alpha = 0.5) + 
+  geom_point(data = betas, aes(x = kidslt6, y = educ), color = "red") +
+  geom_vline(xintercept =
+               c(betas$kidslt6[1] - 1.96 * sd_betas$kidslt6, betas$kidslt6[1] + 1.96 * sd_betas$kidslt6), color = "blue") +
+  geom_hline(yintercept =
+               c(betas$educ[1] - 1.96 * sd_betas$educ, betas$educ[1] + 1.96 * sd_betas$educ), color = "green")
 
 #############################################################################
 # Question 3
