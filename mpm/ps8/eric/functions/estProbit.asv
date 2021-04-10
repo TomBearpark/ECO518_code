@@ -1,4 +1,4 @@
-function Res = estProbit(X, y)
+function betaHat = estProbit(X, y)
 % estProbit()
 % Input
 %  - X: Independent variables (n x k)
@@ -13,22 +13,16 @@ beta0     = (X'*X) \ X'*y ;  % Initialize with OLS
 betaHat   = fmincon(negloglik, beta0);
 
 % Compute weight
-z = 2*y-1;  % Transform y to {-1, 1}. Easier PDF to handle
+z = 2*y-1;  % Transform y to {-1, 1}. Easier PDF.
 
 w     = normpdf(z.* X*betaHat) .*z ./ normcdf(z.* X*betaHat);
+score =  X'*w;
 H     = -X'*diag((X*betaHat + w) .* w) * X/n;
 Omega = X' * diag(w.^2) * X/n;
-invH  = inv(H);
+invH = inv(H);
 
-% Variance-covariance matrices.
+
 VMLE  = -invH;
-VQMLE = invH*Omega * invH;
-
-% Output objects
-Res       = struct;
-Res.beta  =  betaHat;
-Res.VMLE  = VMLE;
-Res.VQMLE = VQMLE;
-Res.n     = n;
+VQMLE = invvH*Omega * invH;
 
 end

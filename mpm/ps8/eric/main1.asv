@@ -1,0 +1,33 @@
+%% Preliminaries
+clear
+clc
+addpath('functions')
+
+Raw = readtable('mroz.csv');
+df  = Raw;
+
+% Add variables
+df.C = df.age * 0 + 1;
+
+%% 
+
+covariates = {'C', 'kidslt6', 'age', 'educ', 'nwifeinc'};
+y          = df.part;
+X          = df{:, covariates};
+Res        = estProbit(X ,y);
+
+makeTableProbit(Res, covariates)
+
+A = [strcmp(covariates, 'kidslt6') ;
+    strcmp(covariates, 'educ')];
+[Grid1, Grid2] = meshgrid(-1.25:.01:0, 0:.01:.25);
+pVal = nan(size(Grid1));
+nGrid = length(Grid1(:));
+
+for j = 1:nGrid
+    pVal(j) = wald(Res, A, [Grid1(j) Grid2(j)]');
+end
+
+
+
+
