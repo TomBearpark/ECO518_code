@@ -1,0 +1,19 @@
+function ResWald = wald(Res, A, gamma)
+
+beta = Res.beta;
+V   = Res.VQMLE;
+n   = Res.n;
+
+r = size(A, 1);  % Number of restrictions
+
+F = n*(A*beta - gamma)'*((A*V*A') \ (A*beta - gamma));
+chi2cdf(F, r)
+
+
+ResWald = struct;
+
+
+
+
+
+end

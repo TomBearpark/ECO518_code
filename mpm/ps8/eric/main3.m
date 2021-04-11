@@ -2,6 +2,11 @@
 
 clear
 clc
+
+% A-R test parameters
+alpha = .05;
+bGrid = (-5:.01:1)';
+
 addpath('functions')
 Raw = readtable('fish.csv');
 df   = Raw;
@@ -22,11 +27,23 @@ R = df{:, RVars};
 Res2SLS  = est2SLS(X, R, y);
 Res2Step = estIV2Step(X,R,y);
 
+AR_set = estAndersonRubin(X,R,y, bGrid, alpha);
+
+
+
 
 %% Create output
 
-makeTable(Res2SLS, XVars)
-makeTable(Res2Step, XVars)
+Table2SLS  = makeTable(Res2SLS, XVars);
+Table2Step = makeTable(Res2Step, XVars);
+
+
+zCrit = abs(norminv(alpha/2));
+[Table2Step{'logp', 'Coefficient'} - zCrit*Table2Step{'logp', 'SE'},...
+    Table2Step{'logp', 'Coefficient'} + zCrit*Table2Step{'logp', 'SE'}]
+
+Res2Step.pJ
+
 
 % Check
 %Res1 = fitlm(df, 'logp~stormy+mixed');
