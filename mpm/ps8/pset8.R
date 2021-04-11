@@ -299,8 +299,8 @@ theta <- results_2STEP$results$coefficient %>% as.matrix()
 omega <- results_2STEP$omega
 Q <- function(theta, omega , Y, X, R){
   N <- length(Y)
-  (1 / N) * t(t(R) %*% (Y - X %*% theta)) %*% solve(omega) %*%( (1 / N) *
-    t(R)) %*% (Y - X %*% theta) %>% drop()
+  (1 / N) * t(t(R) %*% (Y - X %*% theta)) %*% solve(omega) %*%
+    ( (1 / N) *t(R)) %*% (Y - X %*% theta) %>% drop()
 }
 N <- length(Y)
 q <-N* Q(theta, omega, Y, X, R)
