@@ -15,12 +15,13 @@ Restr = [0 1 0;
 
 
 for jb = 1:nGrid
-    b   = bGrid(jb, :);
+    b = bGrid(jb, :);
     e = y - X(:, 2:end)*b;
     
     % Use HC1 SE, consistent with STATA
     [estCov, ~, coeff] = hac(R(:, 2:end), e, 'type', 'HC', 'weights',...
    'HC1','display','off');    
+
 
     % Rk: MATLAB uses different notation from Hayashi. r is a restriction
     % function where r(theta)=0 on parameters of the restricted model.
