@@ -1,6 +1,6 @@
 rm(list = ls())
 if(!require(pacman)) install.packages("pacman")
-pacman::p_load(tidyverse, quantreg)
+pacman::p_load(tidyverse, quantreg, janitor)
 theme_set(theme_bw())
 dir <- paste0("/Users/tombearpark/Documents/princeton/1st_year/term2/", 
               "ECO518_Metrics2/mpm/excercises/")
@@ -64,7 +64,7 @@ boot_ME <- function(i,X,Y, beta0, Xval){
 # Run calculations
 me1 <- probit_marginal_effect("educ", beta, Xval) 
 draws1 <- map_dfr(1:B, boot_ME, X = X, Y = Y, beta0 = beta0, Xval = Xval)
-sd1 <- sd(draws$coef)
+sd1 <- sd(draws1$coef)
 
 # Plot distribution of the ME draws 
 plot_draws <- function(draws, central_val){
@@ -108,7 +108,7 @@ APE_discrete <- function(variable, gap, X, beta){
 
 boot_APE_discrete <- function(i, X, Y, beta0, gap){
   beta <- draw_params(X, Y, beta0)
-  tibble(i, coef = ape_discrete("kidslt6", gap, X, beta))
+  tibble(i, coef = APE_discrete("kidslt6", gap, X, beta))
 }
 ape3 <- APE_discrete('educ', gap = 1,X, beta) 
 draws3 <- map_dfr(1:B, boot_APE_discrete, X = X, Y = Y, beta0 = beta0, gap = 1)
@@ -122,6 +122,11 @@ plot_draws(draws3, ape3)
 ######################################################
 # Q2
 ######################################################
+
+df2 <- read_csv("ps9/heating.csv") %>% 
+  mutate(one = 1) %>% 
+  clean_names()
+
 
 ######################################################
 # Q3
