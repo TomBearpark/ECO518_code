@@ -7,7 +7,7 @@ dir <- paste0("/Users/tombearpark/Documents/princeton/1st_year/term2/",
 setwd(dir);set.seed(1);theme_set(theme_bw())
 
 ######################################################
-# Q1
+# Q1 - Probit Marginal Effects 
 ######################################################
 
 # Load and format data 
@@ -44,7 +44,7 @@ MLE <- optim(par = beta0, probit.log.lik, X = X, Y = Y,
              method = "BFGS", hessian = TRUE)
 
 ######################################################
-# (i)
+# (i) - Marginal effect at the mean for educ
 
 beta <- MLE$par
 Xval <- apply(X, 2, mean) %>% as.matrix() # take means of covariates
@@ -56,38 +56,67 @@ probit_marginal_effect <- function(variable,beta,Xval){
 }
 
 # Take a draw of the marginal effect estimate
-boot_ME <- function(i,X,Y, beta0){
+boot_ME <- function(i,X,Y, beta0, Xval){
   beta <- draw_params(X, Y, beta0)
   tibble(i, coef = probit_marginal_effect("educ", beta, Xval))
 }
 
 # Run calculations
 me1 <- probit_marginal_effect("educ", beta, Xval) 
-draws <- map_dfr(1:B, boot_ME, X = X, Y = Y, beta0 = beta0)
+draws1 <- map_dfr(1:B, boot_ME, X = X, Y = Y, beta0 = beta0, Xval = Xval)
 sd1 <- sd(draws$coef)
 
 # Plot distribution of the ME draws 
-ggplot(draws) + 
-  geom_density(aes(x = coef)) + 
-  geom_vline(xintercept = me1, color = "red") + 
-  geom_vline(xintercept = c(me1 -1.96 * sd1, me1 +1.96 * sd1), 
-             color = "red", alpha = .6)
+plot_draws <- function(draws, central_val){
+  sd <- sd(draws$coef)
+  ggplot(draws) + 
+    geom_density(aes(x = coef)) + 
+    geom_vline(xintercept = central_val, color = "red") + 
+    geom_vline(xintercept = c(central_val -1.96 * sd, central_val +1.96 * sd), 
+               color = "red", alpha = .6)
+}
+plot_draws(draws1, me1)
 
 ######################################################
-# (ii)
-ape_probit <- function(variable, beta)
-{
-  
+# (ii) - Average Partial effect
+
+ape_probit <- function(variable, X, beta){
+  N <- dim(X)[1]
+  g <- sum(dnorm(X %*% beta)) / N
+  beta[variable,] * g
 }
 
+boot_APE <- function(i, X, Y, beta0){
+  beta <- draw_params(X, Y, beta0)
+  tibble(i, coef = ape_probit("educ", X, beta))
+}
+ape2 <- ape_probit('educ', X, beta) 
+draws2 <- map_dfr(1:B, boot_APE, X = X, Y = Y, beta0 = beta0)
+sd2 <- sd(draws2$coef)
+plot_draws(draws2, ape2)
+
+######################################################
 # (iii)
-partial_educ_chunker <- function()
-{
-  
-}
-  
-# (iv) - bootstrap
 
+APE_discrete <- function(variable, gap, X, beta){
+  N <- dim(X)[1]
+  X1 <- X0 <- X
+  X1[,variable] <- gap
+  X0[,variable] <- 0
+  1 / N * sum(pnorm(X1 %*% beta) - pnorm(X0 %*% beta))
+}
+
+boot_APE_discrete <- function(i, X, Y, beta0, gap){
+  beta <- draw_params(X, Y, beta0)
+  tibble(i, coef = ape_discrete("kidslt6", gap, X, beta))
+}
+ape3 <- APE_discrete('educ', gap = 1,X, beta) 
+draws3 <- map_dfr(1:B, boot_APE_discrete, X = X, Y = Y, beta0 = beta0, gap = 1)
+sd3 <- sd(draws3$coef)
+plot_draws(draws3, ape3)
+
+######################################################
+# format results
 
 
 ######################################################
