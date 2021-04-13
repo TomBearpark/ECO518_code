@@ -1,8 +1,7 @@
 rm(list = ls())
-library(tidyverse) 
-library(xtable)
-library(sandwich);library(lmtest);library(car)
-library(estimatr)
+library(tidyverse)                                # data wrangling
+library(xtable)                                   # printing latex tables
+library(car); library(lmtest); library(sandwich)  # standard errors / inference
 
 dir <- paste0("/Users/tombearpark/Documents/princeton/1st_year/term2/", 
               "ECO518_Metrics2/mpm/excercises/ps8/")
@@ -110,7 +109,7 @@ boot <- function(df, covariates, yvar, i){
   df    <- slice_sample(df, prop = 1, replace = TRUE)
   X     <- as.matrix(df[covariates])
   Y     <- df[yvar] %>% as.matrix()
-  beta0 <- solve(t(X) %*% X) %*% t(X) %*% Y
+  beta0 <- solve(t(X) %*% X, t(X) %*% Y)
   MLE   <- optim(par = beta0, probit.log.lik, X = X, Y = Y)
   tibble(parameter = rownames(MLE$par), value = MLE$par[,], i = 1)
 }
@@ -135,7 +134,7 @@ pivot_wider(results, id_cols = "estimator",
 
 results %>% ggplot() +
   geom_bar(aes(x = sd, y = estimator), stat = "identity") +
-  facet_wrap(~parameter, scales = "free")
+  facet_wrap(~parameter, scales = "free") 
 
 
 ########################################################################
@@ -237,7 +236,6 @@ estimate_2SLS <- function(Y, X, R){
 }
 results_2sls <- estimate_2SLS(Y, X, R)
 results_2sls$results %>% xtable()
-tidy(iv_robust(Y ~ X - 1 | R, data = df)) # compare to canned function
 
 # Use the estimate obtained by 2sls to do two setp GMM
 
