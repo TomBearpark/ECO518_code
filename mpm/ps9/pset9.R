@@ -131,3 +131,38 @@ df2 <- read_csv("ps9/heating.csv") %>%
 ######################################################
 # Q3
 ######################################################
+
+df3 <- read_csv("ps7/nls.csv")
+grid <- seq(0.05, 0.95, 0.01)
+
+quant_coef <- function(tau, df){
+  quant <- rq(luwe ~ educ + exper, tau = tau, data = df)
+  tibble(q = tau, coef = coef(quant)["educ"])
+}
+
+boot_quant <- function(i, df, grid){
+  df <- slice_sample(df, prop = 1, replace = TRUE)
+  map_dfr(grid, quant_coef, df = df) %>% mutate(draw = i)
+}
+
+# Run quantile regressions
+quant_df_u  <- map_dfr(1:1000, boot_quant, df = df3, grid = grid)
+quant_df    <- map_dfr(grid, quant_coef, df = df3) 
+
+# Calculate summary stats for plotting
+quant_df_sd <- quant_df_u %>% group_by(q) %>% summarise(sd = sd(coef))
+plot_df <- left_join(quant_df, quant_df_sd) %>% 
+  mutate(min = coef - 1.96 * sd, max = coef + 1.96 * sd)
+
+ggplot(data = plot_df) + 
+  geom_errorbar(aes(x= q, ymin= min, ymax = max), alpha  = .5) + 
+  geom_point(aes(x = q, y = coef), color = "red") + 
+  ggtitle("Coefficient on educ by quantile, SEs from 1000 Bootstrap Draws")
+
+# Extra plot - a few of the quantiles on a raw scatter plot
+df3$q0.95 <- predict(rq(luwe ~ educ + exper, tau = 0.95, data = df3))
+df3$q0.05 <- predict(rq(luwe ~ educ + exper, tau = 0.05, data = df3))
+ggplot(df3) + 
+  geom_point(aes(x = educ, y = luwe)) + 
+  geom_line(aes(x = educ, y = q0.05), color = "red") + 
+  geom_line(aes(x = educ, y = q0.95), color = "red")
