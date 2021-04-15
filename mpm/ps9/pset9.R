@@ -140,18 +140,11 @@ tibble(
 df2 <-  read_csv("ps9/heating.csv") %>% 
   janitor::clean_names() %>% 
   mutate(i = row_number())
-names(df2) <- c(paste0("ic_", seq(0,4)), 
-                paste0("oc_", seq(0,4)), "choice", "i")
+names(df2) <- 
+  c(paste0("ic_", seq(0,4)), paste0("oc_", seq(0,4)), "choice", "i")
 
 # Transform data to make calculations easier 
 N <- dim(df2)[1]
-df2$ic <- 0
-df2$oc <- 0
-for(i in 1:N){
-  choice <- df2$choice[i]
-  df2$ic[i] <- df2[paste0("ic_", choice)][i,1] %>% as.numeric()
-  df2$oc[i] <- df2[paste0("oc_", choice)][i,1] %>% as.numeric()
-}
 for(j in 0:4){
   df2[paste0("Y_i", j)] <- ifelse(df2$choice == j, 1, 0)
 }
@@ -162,29 +155,35 @@ neg_log_likelihood <- function(beta, df){
   alpha <- beta[1:4]
   beta <- beta[5:6]
   
-  # 0 alternative has no constant term 
-  YXB <- df[paste0("Y_i", 0)] * df$ic * beta[1]  +  
-    df[paste0("Y_i", 0)] * df$oc *beta[2]
-  # loop over alternatives 
-  for(j in 1:4){
-    YXB <- YXB + 
-      df[paste0("Y_i", j)] * (alpha[j] + df$ic * beta[1] + df$oc *  beta[2])
+  # term inside the log 
+  sumK <- exp(df[paste0("ic_", 0)] * beta[1]  +  df[paste0("oc_", 0)] *beta[2])
+  for(k in 1:4){
+    sumK <- sumK + 
+      exp(alpha[k] +df[paste0("ic_", k)] * beta[1] + df[paste0("oc_", k)] *beta[2])
   }
+  logXB <- log(sumK)
   
-  # Log term 
-  XB <- exp(df$ic * beta[1] + df$oc * beta[2])
-  for(j in 1:4) XB <- XB + exp(alpha[j] + df$ic * beta[1] + df$oc * beta[2])
-  logXB <- log(XB)
-  
-  # Sum across i 
-  - (sum(YXB) - sum(logXB))
+  # Inside the summation 
+  L <- df[paste0("Y_i", 0)] * (
+    df[paste0("ic_", 0)] * beta[1]  +  df[paste0("oc_", 0)] * beta[2] - logXB
+  )
+  for(j in 1:4){
+    L <- L + df[paste0("Y_i", j)] * (alpha[j] +
+      df[paste0("ic_", j)] * beta[1]  +  df[paste0("oc_", j)] * beta[2] - logXB
+    )
+  }
+  -sum(L)
 }
 beta0 <- as.matrix(rep(0, 6))
-neg_log_likelihood(beta0, df)
-
 MLE <- optim(par = beta0, neg_log_likelihood, df = df2)
+neg_log_likelihood(MLE$par, df2)
 MLE$par
 
+# Compare to a canned implementation 
+library(mlogit)
+data <- mlogit.data(df2, shape="wide", varying=1:10, choice="choice", sep = "_")
+f <- mFormula(choice ~ ic + oc )
+mlogit(f, data = data, start = beta0) %>% summary()
 
 ######################################################
 # Q3 - Quantile Regressions
