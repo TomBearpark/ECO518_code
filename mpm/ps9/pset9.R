@@ -1,6 +1,10 @@
 rm(list = ls())
 if(!require(pacman)) install.packages("pacman")
-pacman::p_load(tidyverse, quantreg, janitor, xtable)
+pacman::p_load(tidyverse, # data wrangling
+               quantreg,  # quantile regression function
+               janitor,   # clean_names() function 
+               xtable     # printing latex tables 
+               )
 theme_set(theme_bw())
 dir <- paste0("/Users/tombearpark/Documents/princeton/1st_year/term2/", 
               "ECO518_Metrics2/mpm/excercises/")
@@ -128,16 +132,58 @@ tibble(
   xtable(digits = 3) %>% 
   print(include.rownames=FALSE)
 
-
 ######################################################
 # Q2
 ######################################################
 
-df2 <- 
-  "ps9/heating.csv" %>% 
-  read_csv() %>% 
-  mutate(one = 1) %>% 
-  janitor::clean_names()
+# Load and clean names of data
+df2 <-  read_csv("ps9/heating.csv") %>% 
+  janitor::clean_names() %>% 
+  mutate(i = row_number())
+names(df2) <- c(paste0("ic_", seq(0,4)), 
+                paste0("oc_", seq(0,4)), "choice", "i")
+
+# Transform data to make calculations easier 
+N <- dim(df2)[1]
+df2$ic <- 0
+df2$oc <- 0
+for(i in 1:N){
+  choice <- df2$choice[i]
+  df2$ic[i] <- df2[paste0("ic_", choice)][i,1] %>% as.numeric()
+  df2$oc[i] <- df2[paste0("oc_", choice)][i,1] %>% as.numeric()
+}
+for(j in 0:4){
+  df2[paste0("Y_i", j)] <- ifelse(df2$choice == j, 1, 0)
+}
+
+# Likelihood function 
+neg_log_likelihood <- function(beta, df){
+  
+  alpha <- beta[1:4]
+  beta <- beta[5:6]
+  
+  # 0 alternative has no constant term 
+  YXB <- df[paste0("Y_i", 0)] * df$ic * beta[1]  +  
+    df[paste0("Y_i", 0)] * df$oc *beta[2]
+  # loop over alternatives 
+  for(j in 1:4){
+    YXB <- YXB + 
+      df[paste0("Y_i", j)] * (alpha[j] + df$ic * beta[1] + df$oc *  beta[2])
+  }
+  
+  # Log term 
+  XB <- exp(df$ic * beta[1] + df$oc * beta[2])
+  for(j in 1:4) XB <- XB + exp(alpha[j] + df$ic * beta[1] + df$oc * beta[2])
+  logXB <- log(XB)
+  
+  # Sum across i 
+  - (sum(YXB) - sum(logXB))
+}
+beta0 <- as.matrix(rep(0, 6))
+neg_log_likelihood(beta0, df)
+
+MLE <- optim(par = beta0, neg_log_likelihood, df = df2)
+MLE$par
 
 
 ######################################################
