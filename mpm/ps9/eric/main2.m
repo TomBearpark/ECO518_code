@@ -64,6 +64,8 @@ delta           = CF(Res, X1, X2);
 
 deltaBoot = nan(nBoot, nChoices);
 
+rng(1)
+
 % Bootstrap standard errors
 for jBoot = 1:nBoot
     clc
@@ -84,7 +86,8 @@ end
 SEcf = std(deltaBoot);
 
 
-outCF = table(delta(:), SEcf(:), 'VariableNames', {'coeff', 'SE'});
+outCF = table(delta(:), SEcf(:), 'VariableNames', {'coeff', 'SE'},...
+    'RowNames', choicesCW.name);
 writetable(outCF, [figPath, 'p2v.xlsx']);
 
 

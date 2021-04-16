@@ -1,7 +1,12 @@
 function delta = CF(Res, X1, X2)
+% CF()  Counterfactual for conditional probit. Reports average difference
+%       between probabilities implied by X1 and X2
+% Input: 
+%  - Res: Results from conditional probit estimation
+%  - X1: Data
+%  - X2: Data
 
 X     = Res.X;
-Y     = Res.Y;
 n     = size(X,1);
 nOpts = size(X,3);
 theta = Res.theta;

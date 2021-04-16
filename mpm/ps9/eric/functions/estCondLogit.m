@@ -69,13 +69,13 @@ for i = 1:n
         alpha_i = [];
     end
     beta_i  = (Y_i - p_i)*X_i(nC+1:end, :)';
-    df      = [alpha_i beta_i]';
-    Omega       = Omega+df*df';    
+    Delf    = [alpha_i beta_i]';
+    Omega   = Omega+Delf*Delf';    
 end
 
 Omega = Omega/n;
 V     = inv(Omega);  % Variance (under correct specification)
-SE = diag(sqrt(V/n));
+SE    = diag(sqrt(V/n));
 
 
 
