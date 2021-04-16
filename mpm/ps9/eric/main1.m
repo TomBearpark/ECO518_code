@@ -6,7 +6,7 @@ figPath = 'figures/';
 
 Raw = readtable('mroz.csv');
 df  = Raw;
-
+mle
 % Add variables
 df.C = df.age * 0 + 1;
 
