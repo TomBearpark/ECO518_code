@@ -84,8 +84,7 @@ end
 SEcf = std(deltaBoot);
 
 
-outCF = table(delta(:), SEcf(:), 'VariableNames', {'coeff', 'SE'});
-writetable(outCF, [figPath, 'p2v.xlsx']);
+outCF = table(deltaBoot(:), SEcf(:), 'VariableNames', {'coeff', 'SE'})
 
 
 
