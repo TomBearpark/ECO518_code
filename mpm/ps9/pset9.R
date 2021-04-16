@@ -150,16 +150,17 @@ for(j in 0:4){
 }
 
 # Likelihood function 
-neg_log_likelihood <- function(beta, df){
+neg_log_likelihood <- function(param, df){
   
-  alpha <- beta[1:4]
-  beta <- beta[5:6]
+  alpha <- param[1:4]
+  beta  <- param[5:6]
   
   # term inside the log 
-  sumK <- exp(df[paste0("ic_", 0)] * beta[1]  +  df[paste0("oc_", 0)] *beta[2])
+  sumK <- exp(df[paste0("ic_", 0)] * beta[1] + df[paste0("oc_", 0)] * beta[2])
   for(k in 1:4){
     sumK <- sumK + 
-      exp(alpha[k] +df[paste0("ic_", k)] * beta[1] + df[paste0("oc_", k)] *beta[2])
+      exp(alpha[k] + df[paste0("ic_", k)] * beta[1] + 
+            df[paste0("oc_", k)] * beta[2])
   }
   logXB <- log(sumK)
   
@@ -174,10 +175,39 @@ neg_log_likelihood <- function(beta, df){
   }
   -sum(L)
 }
+# Helper function for calculating pij terms 
+pij <- function(i, j, param, df){
+  alpha <- c(0, param[1:4])
+  beta  <- param[5:6]
+  numerator <- exp(
+    alpha[j] + df[paste0("ic_", j)] * beta[1] + df[paste0("oc_", j)] * beta[2])
+  denom <- rep(0, dim(df)[1])
+  for(k in 0:4){
+    denom <- denom + exp(
+      alpha[k+1] + df[paste0("ic_", k)] * beta[1] + df[paste0("oc_", k)] * beta[2])
+  }
+  numerator / denom
+}
+
+information_matrix <- function(param, df){
+  
+}
+
 beta0 <- as.matrix(rep(0, 6))
-MLE <- optim(par = beta0, neg_log_likelihood, df = df2)
+MLE <- optim(par = beta0, neg_log_likelihood, df = df2, hessian = TRUE)
 neg_log_likelihood(MLE$par, df2)
 MLE$par
+(MLE$hessian / N) %>% solve() %>% diag() %>% sqrt()
+
+
+boot <- function(i, df, beta0){
+  df  <- slice_sample(df, prop = 1, replace = TRUE)
+  MLE <- optim(par = beta0, neg_log_likelihood, df = df)
+  data.frame(t(MLE$par), i = i)
+}
+draws <- map_dfr(1:500, boot, df = df2, beta0= beta0)
+draws %>% summarise_all(sd)
+
 
 # Compare to a canned implementation 
 library(mlogit)
