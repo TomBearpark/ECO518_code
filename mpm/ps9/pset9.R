@@ -135,85 +135,7 @@ tibble(
 ######################################################
 # Q2
 ######################################################
-
-# Load and clean names of data
-df2 <-  read_csv("ps9/heating.csv") %>% 
-  janitor::clean_names() %>% 
-  mutate(i = row_number())
-names(df2) <- 
-  c(paste0("ic_", seq(0,4)), paste0("oc_", seq(0,4)), "choice", "i")
-
-# Transform data to make calculations easier 
-N <- dim(df2)[1]
-for(j in 0:4){
-  df2[paste0("Y_i", j)] <- ifelse(df2$choice == j, 1, 0)
-}
-
-# Likelihood function 
-neg_log_likelihood <- function(param, df){
-  
-  alpha <- param[1:4]
-  beta  <- param[5:6]
-  
-  # term inside the log 
-  sumK <- exp(df[paste0("ic_", 0)] * beta[1] + df[paste0("oc_", 0)] * beta[2])
-  for(k in 1:4){
-    sumK <- sumK + 
-      exp(alpha[k] + df[paste0("ic_", k)] * beta[1] + 
-            df[paste0("oc_", k)] * beta[2])
-  }
-  logXB <- log(sumK)
-  
-  # Inside the summation 
-  L <- df[paste0("Y_i", 0)] * (
-    df[paste0("ic_", 0)] * beta[1]  +  df[paste0("oc_", 0)] * beta[2] - logXB
-  )
-  for(j in 1:4){
-    L <- L + df[paste0("Y_i", j)] * (alpha[j] +
-      df[paste0("ic_", j)] * beta[1]  +  df[paste0("oc_", j)] * beta[2] - logXB
-    )
-  }
-  -sum(L)
-}
-# Helper function for calculating pij terms 
-pij <- function(i, j, param, df){
-  alpha <- c(0, param[1:4])
-  beta  <- param[5:6]
-  numerator <- exp(
-    alpha[j] + df[paste0("ic_", j)] * beta[1] + df[paste0("oc_", j)] * beta[2])
-  denom <- rep(0, dim(df)[1])
-  for(k in 0:4){
-    denom <- denom + exp(
-      alpha[k+1] + df[paste0("ic_", k)] * beta[1] + df[paste0("oc_", k)] * beta[2])
-  }
-  numerator / denom
-}
-
-information_matrix <- function(param, df){
-  
-}
-
-beta0 <- as.matrix(rep(0, 6))
-MLE <- optim(par = beta0, neg_log_likelihood, df = df2, hessian = TRUE)
-neg_log_likelihood(MLE$par, df2)
-MLE$par
-(MLE$hessian / N) %>% solve() %>% diag() %>% sqrt()
-
-
-boot <- function(i, df, beta0){
-  df  <- slice_sample(df, prop = 1, replace = TRUE)
-  MLE <- optim(par = beta0, neg_log_likelihood, df = df)
-  data.frame(t(MLE$par), i = i)
-}
-draws <- map_dfr(1:500, boot, df = df2, beta0= beta0)
-draws %>% summarise_all(sd)
-
-
-# Compare to a canned implementation 
-library(mlogit)
-data <- mlogit.data(df2, shape="wide", varying=1:10, choice="choice", sep = "_")
-f <- mFormula(choice ~ ic + oc )
-mlogit(f, data = data, start = beta0) %>% summary()
+# Separate code file
 
 ######################################################
 # Q3 - Quantile Regressions
@@ -240,14 +162,15 @@ quant_df_u  <- map_dfr(1:1000, boot_quant, df = df3, grid = grid)
 quant_df    <- map_dfr(grid, quant_coef, df = df3) 
 
 # Calculate summary stats for plotting
-quant_df_sd <- quant_df_u %>% group_by(q) %>% summarise(sd = sd(coef)) %>% ungroup()
+quant_df_sd <- quant_df_u %>% group_by(q) %>% summarise(sd = sd(coef)) %>% 
+  ungroup()
 plot_df     <- left_join(quant_df, quant_df_sd) %>% 
   mutate(min = coef - 1.96 * sd, max = coef + 1.96 * sd)
 
 ggplot(data = plot_df) + 
   geom_errorbar(aes(x= q, ymin= min, ymax = max), alpha  = .5) + 
   geom_point(aes(x = q, y = coef), color = "red") + 
-  ggtitle("Coefficient on educ by quantile, SEs from 1000 Bootstrap Draws")+
+  ggtitle("Coefficient on educ by quantile, SEs from 1000 Bootstrap Draws") +
   ggsave(paste0(out, "3_educ_quantile.png"), height = 4, width = 8)
 
 ggplot(data = plot_df) + 
