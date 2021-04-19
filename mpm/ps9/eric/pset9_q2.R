@@ -1,7 +1,7 @@
 library(abind)
 library(tidyverse)
 library(janitor)
-
+library(furrr)
 
 # Read in the data, clean up the names
 df <-  read_csv("ps9/heating.csv") %>% 
@@ -16,7 +16,9 @@ names(df) <-
     paste0("oc_", seq(1,num_choices)), "choice", "i")
 
 # Create choices matrix 
-for(j in 1:5)  df[paste0("Y_i", j)] <- ifelse(df$choice == j, 1, 0)
+for(j in 0:4){
+  df[paste0("Y_i", j+1)] <- ifelse(df$choice == j, 1, 0)
+}
 Y <- df[c(paste0("Y_i", 1:5))] %>% as.matrix()
 
 # Create covariate array - N x k x NumChoices 
@@ -60,7 +62,6 @@ theta <- MLE$par
 theta
 # Get the standard errors using the information matrix estimator 
 Omega <- matrix(0, ncol = length(theta), nrow = length(theta))
-
 for (i in 1:N ){
   X_i <- X[i,,]
   Y_i <- Y[i,]
@@ -70,17 +71,15 @@ for (i in 1:N ){
   Delta_f <- matrix(c(alpha_i, beta_i))
   Omega <- Omega + Delta_f %*% t(Delta_f)
 }
-
 Omega <- Omega/N 
 V     <- solve(Omega)
 SE    <- diag(sqrt(V/N))
 
 # iv) likelihood ratio
 MLE_NC <- optim(par = c(0,0), loglikCondProbit, X = X, Y = Y, constant = FALSE)
-LR <- -2*(MLE$value - MLE_NC$value)
+LR <- -2*(-MLE_NC$value - (-MLE$value))
 
 # v) Market Shares
-
 average_p <- function(X, Y, N, theta){
   p_i <- 0
   for (i in 1:N){
@@ -111,5 +110,8 @@ boot <- function(i, initial, X, Y, N){
   E_Pij_altered - E_Pij
 }
 boot(1, MLE$par, X, Y, N)
-draws <- map(seq(1,1000), boot, initial = MLE$par, X = X, Y= Y, N = N)
-draws %>%  rbind() %>% summarize_all(sd)
+plan(multisession(workers = 7))
+draws <- future_map(seq(1,1000), boot, initial = MLE$par, X = X, Y= Y, N = N)
+
+draws <- do.call(rbind.data.frame, draws)
+draws %>%  summarize_all(sd)
