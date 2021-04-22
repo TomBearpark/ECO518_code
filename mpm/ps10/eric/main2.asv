@@ -1,0 +1,27 @@
+%% Preliminaries 
+clear
+clc
+
+% Read data
+Raw = readtable('jtpa.csv');
+df  = Raw;
+
+%%
+
+ResNoControls = struct;
+% No controls
+[ResNoControls.EstCov, ResNoControls.se, ResNoControls.coeff] = ...
+    hac(df(:, {'treatment', 'earnings'}), 'type', 'HC', ...
+    'weights', 'HC1');   % for consistency with STATA
+
+
+% Base category is 55-78
+ResControls = struct;
+controls = {'age2225', 'age2629', 'age3035', 'age3644', 'age4554'};
+[ResControls.EstCov, ResControls.se, ResControls.coeff] = hac(df(:, ['treatment', controls, 'earnings']), 'type', 'HC', ...
+    'weights', 'HC1');
+
+makeTableHAC(Res)
+
+
+
