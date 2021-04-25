@@ -95,9 +95,9 @@ boot_APE <- function(i, X, Y, beta0){
   beta <- draw_params(X, Y, beta0)
   tibble(i, coef = ape_probit("educ", X, beta))
 }
-ape2 <- ape_probit('educ', X, beta) 
+ape2   <- ape_probit('educ', X, beta) 
 draws2 <- map_dfr(1:B, boot_APE, X = X, Y = Y, beta0 = beta0)
-sd2 <- sd(draws2$coef)
+sd2    <- sd(draws2$coef)
 plot_draws(draws2, ape2)
 
 ######################################################

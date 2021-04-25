@@ -2,6 +2,10 @@ library(abind)
 library(tidyverse)
 library(janitor)
 library(furrr)
+theme_set(theme_bw())
+dir <- paste0("/Users/tombearpark/Documents/princeton/1st_year/term2/", 
+              "ECO518_Metrics2/mpm/excercises/")
+setwd(dir);set.seed(1);theme_set(theme_bw())
 
 # Read in the data, clean up the names
 df <-  read_csv("ps9/heating.csv") %>% 
