@@ -1,5 +1,0 @@
-function makeTableHAC(Res)
-
-Res = ResControls;
-
-end

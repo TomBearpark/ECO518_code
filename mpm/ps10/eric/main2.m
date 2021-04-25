@@ -2,7 +2,7 @@
 clear
 clc
 addpath('functions/')
-
+outDir = 'output/';
 
 % Read data
 Raw = readtable('jtpa.csv');
@@ -17,8 +17,9 @@ ResNoControls.vars = {'treatment', 'earnings'};
     hac(df(:, ResNoControls.vars), 'type', 'HC', ...
     'weights', 'HC1');   % for consistency with STATA
 
-makeTableHAC(ResNoControls)
+outNoControls = makeTableHAC(ResNoControls);
 
+writetable(outNoControls, [outDir 'p2_noControls.xlsx'])
 
 % Base category is 55-78
 ResControls = struct;
@@ -28,7 +29,7 @@ ResControls.vars = ['treatment', controls, 'earnings'];
     hac(df(:, ResControls.vars), 'type', 'HC', ...
     'weights', 'HC1');
 
-makeTableHAC(ResControls)
-
+outControls = makeTableHAC(ResControls);
+writetable(outControls, [outDir 'p2_controls.xlsx'])
 
 
