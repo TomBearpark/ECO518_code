@@ -1,4 +1,4 @@
-estimate_2SLS <- function(Y, X, R){
+estimate_2SLS <- function(Y, X, R, return.omega = FALSE){
   
   N <- length(Y)
   S_rx <- t(R) %*% X / N
@@ -23,7 +23,10 @@ estimate_2SLS <- function(Y, X, R){
     solve(t(G) %*% W %*% G)
   
   sd_gmm <- sqrt(diag(gmm_var / N))
-  
-  list(results = tibble(coefficient = drop(beta), sd = sd_gmm), 
-       omega = O)
+  if(return.omega){
+    list(results = tibble(coefficient = drop(beta), sd = sd_gmm), 
+         omega = O)
+  }else{
+    tibble(coefficient = drop(beta))
+  }
 }
