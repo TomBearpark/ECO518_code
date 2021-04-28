@@ -27,6 +27,6 @@ estimate_2SLS <- function(Y, X, R, return.omega = FALSE){
     list(results = tibble(coefficient = drop(beta), sd = sd_gmm), 
          omega = O)
   }else{
-    tibble(coefficient = drop(beta))
+    tibble(coefficient = drop(beta), sd = sd_gmm)
   }
 }

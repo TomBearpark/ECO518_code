@@ -121,7 +121,8 @@ get_2sls <- function(yob, df){
   R <- as.matrix(df[c("c", "draftelig")])
   
   res <- estimate_2SLS(Y, X, R) %>% mutate(yob = yob)
-  res$parameter = c("constant", "veteran")
+  res$parameter <- c("constant", "veteran")
+  res
 }
 yobs <- unique(df$yob)
 results <- map_dfr(yobs, get_2sls, df = df)
@@ -131,6 +132,24 @@ results %>%
                         names_from = yob, values_from = c(value), 
               names_prefix = "yob_") %>% xtable() %>% print()
 
-pacman::p_load(ivpack,ivreg)
-ivreg(lwage ~ veteran | draftelig, data = filter(df, yob == 50)) %>% robust.se()
+# Check against canned package...
+# pacman::p_load(ivpack,ivreg)
+# ivreg(lwage ~ veteran | draftelig, data = filter(df, yob == 50)) %>% robust.se()
 
+# Fraction of compliers, never takers, always takers 
+fracs <- function(df, yob){
+  df <- filter(df, yob == !!yob)
+  N <- dim(df)[1]
+  N1 <- 1*(df$draftelig == 1) %>% sum()
+  N0 <- 1*(df$draftelig == 0) %>% sum()
+  p11 <- sum(df$veteran[df$draftelig == 1]) / N1
+  p10 <- sum(df$veteran[df$draftelig == 0]) / N0
+  tibble(
+    yob = yob, N = N, 
+    compliers = p11-p10, 
+    always_take = p10, 
+    never_take = 1 - p11
+  )
+}
+fracs_df <- map_dfr(yobs, fracs, df = df )
+fracs_df %>% xtable() %>% print(include.rownames=FALSE)
