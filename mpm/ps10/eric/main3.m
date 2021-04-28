@@ -74,7 +74,8 @@ end
 %% Would expect draft to be stronger in the general population. Never takers are a large 
 % portion. Those who never take may have information on earnings power in
 % the counterfactual where they enter draft (do what they can to avoid). As
-% a result
+% a result, earnings losses would be greater in magnitude for ATE than for
+% LATE.
 
 idTable = array2table([[Spec.alwaysTakers]; [Spec.compliers]; [Spec.neverTakers]], ...
         'VariableNames', append("yr", string(yob)), ...
