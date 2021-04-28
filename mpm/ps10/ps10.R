@@ -1,13 +1,14 @@
 rm(list = ls())
 if(!require(pacman)) install.packages("pacman")
 pacman::p_load(tidyverse, # data wrangling
-               xtable     # printing latex tables 
-)
+               xtable,     # printing latex tables 
+               patchwork, sandwich, stargazer)
+
 root <- paste0("/Users/tombearpark/Documents/princeton/1st_year/term2/", 
                "ECO518_Metrics2")
-dir <- paste0(root, "/mpm/excercises/")
+dir  <- paste0(root, "/mpm/excercises/")
 code <- paste0(root, "/ECO518_code/mpm")
-out <- paste0(dir, "ps10/out/");dir.create(out, showWarnings = FALSE)
+out  <- paste0(dir, "ps10/out/");dir.create(out, showWarnings = FALSE)
 
 setwd(dir);set.seed(1);theme_set(theme_bw())
 
@@ -28,27 +29,77 @@ tibble(a = a, power = power(a, 2,2,10,10)) %>%
   geom_hline(yintercept = 0, color = "red", alpha = 0.4) + 
   ggsave(paste0(out, "1_power_function_example.png"), height = 4, width = 6)
 
+power_df_N <- function(N, sigma = 2){
+  N1 <- N2 <- N / 2
+  sigma1 <- sigma2 <- sigma
+  a <- seq(-5,5,0.1)
+  tibble(N = N, a = a, power = power(a, sigma1,sigma2, N1, N2))
+}
+power_df_sigma <- function(sigma){
+  N1 <- N2 <- 20 / 2
+  sigma1 <- sigma2 <- sigma
+  a <- seq(-5,5,0.1)
+  tibble(sigma = sigma, a = a, power = power(a, sigma1,sigma2, N1, N2))
+}
+(map_dfr(1:100, power_df_N) %>% 
+ggplot(aes(group = N)) + 
+  geom_line(aes(x = a, y = power, color = N)) + 
+  scale_color_viridis_c()) + 
+(map_dfr(1:100, power_df_sigma) %>% 
+   ggplot(aes(group = sigma)) + 
+   geom_line(aes(x = a, y = power, color = sigma)) + 
+   scale_color_viridis_c()) + 
+  ggsave(paste0(out, "1_power_function_N.png"), height = 4, width = 9)
+
+
 
 ###############################################################
 # Question 2
 ###############################################################
 df <- read_csv(paste0(dir, "/ps10/jtpa.csv"))
 
+# i
+
+lm1 <- lm(data = df, earnings ~ treatment)
+summary(lm1)
+coeftest(lm1, vcov = vcovHC(lm1, type = "HC1")) %>% stargazer()
+df %>% ggplot(aes(group = treatment)) + geom_density (aes(x = earnings, color = treatment))
+
+# ii
 df$age <- case_when(
   df$age2225 == 1 ~ "22 25",
   df$age2629 == 1 ~ "26 29", 
   df$age3035 == 1 ~ "30 35", 
   df$age3644 == 1 ~ "36 44", 
-  df$age4554 == 1 ~ "45 54", 
-  is.na(df$age) == TRUE ~ "55 78"
-)
+  df$age4554 == 1 ~ "45 54")
+
+lm2 <- lm(data = df, earnings ~ treatment + factor(age))
+coeftest(lm2, vcov = vcovHC(lm2, type = "HC1")) %>% stargazer()
+
+
+# iii
+power <- function(N, df){
+  z <- qnorm(.975)
+  a <- 1000
+  sigma1 <- df$earnings[df$treatment == 1] %>% sd()
+  sigma0 <- df$earnings[df$treatment == 0] %>% sd()
+  N1 <- 2/3 * N
+  N2 <- 1/2 * N
+  gamma <- a / (sqrt(sigma1^2) / N1 + sqrt(sigma0^2) / N2)
+  pnorm(gamma - z) + pnorm(-gamma - z)
+}
+res <- map_dbl(1:1000, power, df)
+
+plot_df <- tibble(N = 1:1000, power = res)
+plot_df %>% filter(N<300) %>% ggplot() + 
+  geom_line(aes( x = N, y = power )) + 
+  geom_hline(yintercept = 0.8, color = "red") + 
+  geom_hline(yintercept = 0, color = "black") + 
+  ggsave(file = paste0(out, "2_power_N.png"), height = 5, width = 6)
 
 ggplot(data = df) + 
   geom_density(aes(x = earnings, color= factor(treatment))) + 
   facet_wrap(~age)
-
-# regii <- lm(data = df, 
-            # earnings ~ )
 
 ###############################################################
 # Question 3
