@@ -2,7 +2,7 @@ rm(list = ls())
 if(!require(pacman)) install.packages("pacman")
 pacman::p_load(tidyverse, # data wrangling
                xtable,     # printing latex tables 
-               patchwork, sandwich, stargazer)
+               patchwork, sandwich, stargazer, lmtest)
 
 root <- paste0("/Users/tombearpark/Documents/princeton/1st_year/term2/", 
                "ECO518_Metrics2")
@@ -84,18 +84,21 @@ power <- function(N, df){
   sigma1 <- df$earnings[df$treatment == 1] %>% sd()
   sigma0 <- df$earnings[df$treatment == 0] %>% sd()
   N1 <- 2/3 * N
-  N2 <- 1/2 * N
-  gamma <- a / (sqrt(sigma1^2) / N1 + sqrt(sigma0^2) / N2)
+  N2 <- 1/3 * N
+  gamma <- a / (sqrt(sigma1^2 / N1 + sigma0^2 / N2))
   pnorm(gamma - z) + pnorm(-gamma - z)
 }
-res <- map_dbl(1:1000, power, df)
+res <- map_dbl(1:10000, power, df)
 
-plot_df <- tibble(N = 1:1000, power = res)
-plot_df %>% filter(N<300) %>% ggplot() + 
+plot_df <- tibble(N = 1:10000, power = res)
+plot_df %>% ggplot() + 
   geom_line(aes( x = N, y = power )) + 
   geom_hline(yintercept = 0.8, color = "red") + 
   geom_hline(yintercept = 0, color = "black") + 
   ggsave(file = paste0(out, "2_power_N.png"), height = 5, width = 6)
+
+plot_df$N[plot_df$power == min(res[res>.80])]
+
 
 ggplot(data = df) + 
   geom_density(aes(x = earnings, color= factor(treatment))) + 
