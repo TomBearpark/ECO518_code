@@ -41,6 +41,7 @@ power_df_sigma <- function(sigma){
   a <- seq(-5,5,0.1)
   tibble(sigma = sigma, a = a, power = power(a, sigma1,sigma2, N1, N2))
 }
+# cray graph for fun... 
 (map_dfr(1:100, power_df_N) %>% 
 ggplot(aes(group = N)) + 
   geom_line(aes(x = a, y = power, color = N)) + 
@@ -51,19 +52,15 @@ ggplot(aes(group = N)) +
    scale_color_viridis_c()) + 
   ggsave(paste0(out, "1_power_function_N.png"), height = 4, width = 9)
 
-
-
 ###############################################################
 # Question 2
 ###############################################################
 df <- read_csv(paste0(dir, "/ps10/jtpa.csv"))
 
 # i
-
 lm1 <- lm(data = df, earnings ~ treatment)
-summary(lm1)
+sd1 <- sqrt(diag(vcovHC(lm1, type = "HC1")))
 coeftest(lm1, vcov = vcovHC(lm1, type = "HC1")) %>% stargazer()
-df %>% ggplot(aes(group = treatment)) + geom_density (aes(x = earnings, color = treatment))
 
 # ii
 df$age <- case_when(
@@ -72,10 +69,14 @@ df$age <- case_when(
   df$age3035 == 1 ~ "30 35", 
   df$age3644 == 1 ~ "36 44", 
   df$age4554 == 1 ~ "45 54")
+df$age <- ifelse(is.na(df$age), "55 78", df$age)
 
 lm2 <- lm(data = df, earnings ~ treatment + factor(age))
 coeftest(lm2, vcov = vcovHC(lm2, type = "HC1")) %>% stargazer()
+sd2 <- sqrt(diag(vcovHC(lm2, type = "HC1")))
 
+# Print for latex
+stargazer(lm1, lm2, se = list(sd1, sd2))
 
 # iii
 power <- function(N, df){
@@ -98,11 +99,6 @@ plot_df %>% ggplot() +
   ggsave(file = paste0(out, "2_power_N.png"), height = 5, width = 6)
 
 plot_df$N[plot_df$power == min(res[res>.80])]
-
-
-ggplot(data = df) + 
-  geom_density(aes(x = earnings, color= factor(treatment))) + 
-  facet_wrap(~age)
 
 ###############################################################
 # Question 3
@@ -128,16 +124,13 @@ get_2sls <- function(yob, df){
   res
 }
 yobs <- unique(df$yob)
-results <- map_dfr(yobs, get_2sls, df = df)
-results %>% 
+results <- map_dfr(yobs, get_2sls, df = df) %>% 
   pivot_longer(cols = c(coefficient, sd)) %>% 
   pivot_wider(id_cols = c(parameter, name), 
                         names_from = yob, values_from = c(value), 
-              names_prefix = "yob_") %>% xtable() %>% print()
+              names_prefix = "yob_") 
 
-# Check against canned package...
-# pacman::p_load(ivpack,ivreg)
-# ivreg(lwage ~ veteran | draftelig, data = filter(df, yob == 50)) %>% robust.se()
+results %>% xtable() %>% print()
 
 # Fraction of compliers, never takers, always takers 
 fracs <- function(df, yob){
