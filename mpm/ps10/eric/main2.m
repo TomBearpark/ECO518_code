@@ -8,7 +8,7 @@ outDir = 'output/';
 Raw = readtable('jtpa.csv');
 df  = Raw;
 
-%%
+%% Run regressions
 
 ResNoControls = struct;
 ResNoControls.vars = {'treatment', 'earnings'};
@@ -33,3 +33,19 @@ outControls = makeTableHAC(ResControls);
 writetable(outControls, [outDir 'p2_controls.xlsx'])
 
 
+%% Get sample standard deviations of earnings for treatment/control
+
+
+sigmaTreatment = std(df.earnings(df.treatment == 1));
+sigmaControl   = std(df.earnings(df.treatment == 0));
+a              = 1000;
+propTreat      = 2/3;
+propControl    = 1-propTreat;
+zStar         = 1.96;  % size 5% test
+
+gamma = @(n)  a*sqrt(n)/sqrt(sigmaTreatment^2/propTreat + sigmaControl^2/propControl);
+pi    = @(n) normcdf(gamma(n) - zStar) + normcdf(-zStar - gamma(n));
+ 
+ 
+nOpt = fmincon(@(n) abs(pi(n) - 0.8), height(df));
+ceil(nOpt)
